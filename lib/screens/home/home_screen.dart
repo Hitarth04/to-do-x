@@ -297,8 +297,11 @@ class HomeScreen extends StatelessWidget {
                               pickedTime?.minute ?? 0,
                             );
 
+                            // Logic: Notification Scheduling
                             if (isReminderOn) {
                               DateTime? notifyAt;
+
+                              // Case 1: Exact Time (Custom)
                               if (minutesBefore == 0 &&
                                   exactReminderTime != null) {
                                 notifyAt = DateTime(
@@ -308,18 +311,28 @@ class HomeScreen extends StatelessWidget {
                                   exactReminderTime!.hour,
                                   exactReminderTime!.minute,
                                 );
-                              } else if (minutesBefore > 0) {
+                              }
+                              // Case 2: Relative Time (15/30 mins before)
+                              else if (minutesBefore > 0) {
                                 notifyAt = taskDateTime.subtract(
                                   Duration(minutes: minutesBefore),
                                 );
                               }
 
+                              // CRITICAL: We only schedule if the calculated 'notifyAt' is in the FUTURE.
                               if (notifyAt != null &&
                                   notifyAt.isAfter(DateTime.now())) {
                                 NotificationService.scheduleNotification(
                                   DateTime.now().millisecondsSinceEpoch ~/ 1000,
                                   taskController.text,
                                   notifyAt,
+                                  minutesBefore, // Pass this to get the custom message
+                                );
+                              } else {
+                                // Optional: Warn user if they set a time in the past
+                                Get.snackbar(
+                                  "Reminder Warning",
+                                  "The reminder time is in the past and won't fire.",
                                 );
                               }
                             }

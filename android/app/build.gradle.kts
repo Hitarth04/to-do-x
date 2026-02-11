@@ -11,24 +11,30 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-		isCoreLibraryDesugaringEnabled = true
+        // This enables the desugaring library you added below
+        isCoreLibraryDesugaringEnabled = true
+        
+        // Java 17 is compatible with modern Flutter/Android builds
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions { jvmTarget = JavaVersion.VERSION_17.toString() }
+    kotlinOptions {
+        // FIX: Use simple string "17" instead of toString() calls
+        jvmTarget = "17"
+    }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID
-        // (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.to_do_x"
         // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-	multiDexEnabled = true
+        
+        // REQUIRED: MultiDex is needed for the desugaring library
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -40,11 +46,12 @@ android {
     }
 }
 
-flutter { source = "../.." }
+flutter {
+    source = "../.."
+}
 
 dependencies {
-    // FIX: Add this line at the bottom of dependencies
+    // FIX: Only include desugaring. 
+    // REMOVED: implementation("org.jetbrains.kotlin:kotlin-stdlib...") as it caused the error.
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
-    
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version")
 }

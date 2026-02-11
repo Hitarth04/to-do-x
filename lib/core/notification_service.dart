@@ -7,10 +7,7 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   static Future<void> init() async {
-    // 1. Initialize Timezones
     tz.initializeTimeZones();
-
-    // 2. Android Initialization Settings
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -20,8 +17,6 @@ class NotificationService {
 
     await _notifications.initialize(settings);
 
-    // 3. Logic: Request Permissions for Android 13+
-    // This is the specific logic you asked where to put
     final androidImplementation = _notifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -33,20 +28,29 @@ class NotificationService {
     }
   }
 
-  // Helper to schedule the notification
+  // FIX: Added 'minutesBefore' parameter to customize the message
   static Future<void> scheduleNotification(
     int id,
-    String title,
-    DateTime time,
+    String taskTitle,
+    DateTime scheduledTime,
+    int minutesBefore,
   ) async {
-    // Logic: Only schedule if the time is in the future to avoid errors
-    if (time.isBefore(DateTime.now())) return;
+    // Logic: Safety check - cannot schedule in the past
+    if (scheduledTime.isBefore(DateTime.now())) return;
+
+    // Logic: Custom Message based on user preference
+    String bodyText;
+    if (minutesBefore == 0) {
+      bodyText = "It's time for your task!";
+    } else {
+      bodyText = "Is starting in $minutesBefore minutes!";
+    }
 
     await _notifications.zonedSchedule(
       id,
-      'Task Reminder',
-      'Start now: $title',
-      tz.TZDateTime.from(time, tz.local),
+      taskTitle, // Notification Title = Task Name
+      bodyText, // Notification Body = "Is starting in X minutes!"
+      tz.TZDateTime.from(scheduledTime, tz.local),
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'task_channel',
