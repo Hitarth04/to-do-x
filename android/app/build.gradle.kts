@@ -11,7 +11,7 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-	isCoreLibraryDesugaringEnabled = true
+		isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -41,7 +41,7 @@ android {
 
 flutter { source = "../.." }
 
-dependencies {
-    // Logic: Kotlin DSL requires parentheses around the string
+dependencies {    
+    // FIX: Kotlin syntax requires parentheses and double quotes
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 }

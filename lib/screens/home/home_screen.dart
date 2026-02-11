@@ -67,6 +67,7 @@ class HomeScreen extends StatelessWidget {
                             (task.date.hour == 0 && task.date.minute == 0)
                             ? "All Day"
                             : DateFormat('hh:mm a').format(task.date);
+
                         return Dismissible(
                           key: Key(task.id),
                           direction: DismissDirection.endToStart,
@@ -80,33 +81,51 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                           onDismissed: (direction) {
-                            // 1. Store the task temporarily
+                            // 1. Capture the task
                             final deletedTask = task;
-                            final deletedIndex = index;
 
-                            // 2. Remove from controller
+                            // 2. Find its ACTUAL index in the main list before deleting
+                            final int globalIndex = controller.tasks.indexOf(
+                              task,
+                            );
+
+                            // 3. Delete
                             controller.deleteTask(task.id);
 
-                            // 3. Show Snackbar with Undo logic
+                            // 4. Show Undo Snackbar
                             Get.rawSnackbar(
-                              message: "${task.title} deleted",
+                              messageText: Text(
+                                "${task.title} deleted",
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              snackPosition: SnackPosition.BOTTOM,
+                              backgroundColor: Colors.black87,
+                              duration: const Duration(seconds: 4),
                               mainButton: TextButton(
                                 onPressed: () {
-                                  // Logic: Re-insert the task back into the list
-                                  controller.tasks.insert(
-                                    deletedIndex,
-                                    deletedTask,
-                                  );
+                                  // Logic: Insert back at the specific Global Index
+                                  // We check bounds just to be safe
+                                  if (globalIndex >= 0 &&
+                                      globalIndex <= controller.tasks.length) {
+                                    controller.tasks.insert(
+                                      globalIndex,
+                                      deletedTask,
+                                    );
+                                  } else {
+                                    // Fallback: just add it to the end
+                                    controller.tasks.add(deletedTask);
+                                  }
+
                                   if (Get.isSnackbarOpen) Get.back();
                                 },
                                 child: const Text(
                                   "UNDO",
-                                  style: TextStyle(color: Colors.yellow),
+                                  style: TextStyle(
+                                    color: Colors.yellow,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                              duration: const Duration(
-                                seconds: 4,
-                              ), // Available for 4 seconds
                             );
                           },
                           child: TaskCard(
@@ -135,7 +154,6 @@ class HomeScreen extends StatelessWidget {
     final HomeController controller = Get.find<HomeController>();
     final TextEditingController taskController = TextEditingController();
 
-    // Logic: All state variables defined at the top to ensure scope across the function
     DateTime selectedDate = controller.selectedDate.value;
     TimeOfDay? pickedTime;
     bool isHighPriority = false;
@@ -178,10 +196,9 @@ class HomeScreen extends StatelessWidget {
                         hintText: "What needs to be done?",
                         border: OutlineInputBorder(),
                       ),
+                      autofocus: true,
                     ),
                     const SizedBox(height: 10),
-
-                    // Date Selection
                     ListTile(
                       leading: const Icon(Icons.calendar_today),
                       title: Text(
@@ -201,8 +218,6 @@ class HomeScreen extends StatelessWidget {
                         }
                       },
                     ),
-
-                    // Task Time Selection
                     ListTile(
                       leading: const Icon(Icons.access_time),
                       title: Text(pickedTime?.format(context) ?? "All Day"),
@@ -216,16 +231,12 @@ class HomeScreen extends StatelessWidget {
                         }
                       },
                     ),
-
-                    // Reminder Toggle
                     SwitchListTile(
                       title: const Text("Set Reminder"),
                       value: isReminderOn,
                       onChanged: (val) =>
                           setSheetState(() => isReminderOn = val),
                     ),
-
-                    // Conditional Reminder Options
                     if (isReminderOn) ...[
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -268,26 +279,18 @@ class HomeScreen extends StatelessWidget {
                           },
                         ),
                     ],
-
-                    // Priority Toggle
                     SwitchListTile(
                       title: const Text("High Priority"),
                       value: isHighPriority,
                       onChanged: (val) =>
                           setSheetState(() => isHighPriority = val),
                     ),
-
                     const SizedBox(height: 20),
-
-                    // Create Task Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
                         ),
                         onPressed: () {
                           if (taskController.text.isNotEmpty) {
@@ -299,13 +302,10 @@ class HomeScreen extends StatelessWidget {
                               pickedTime?.minute ?? 0,
                             );
 
-                            // Logic: Handle Reminders (Exact vs Relative)
                             if (isReminderOn) {
                               DateTime? notifyAt;
-
                               if (minutesBefore == 0 &&
                                   exactReminderTime != null) {
-                                // Use specific user-selected time
                                 notifyAt = DateTime(
                                   selectedDate.year,
                                   selectedDate.month,
@@ -314,7 +314,6 @@ class HomeScreen extends StatelessWidget {
                                   exactReminderTime!.minute,
                                 );
                               } else if (minutesBefore > 0) {
-                                // Use relative time (e.g., 15 mins before task)
                                 notifyAt = taskDateTime.subtract(
                                   Duration(minutes: minutesBefore),
                                 );
@@ -330,7 +329,6 @@ class HomeScreen extends StatelessWidget {
                               }
                             }
 
-                            // Logic: Add Task to Controller
                             controller.addTask(
                               taskController.text,
                               taskDateTime,
@@ -338,9 +336,7 @@ class HomeScreen extends StatelessWidget {
                               isReminder: isReminderOn,
                               reminderMins: minutesBefore,
                             );
-
-                            // Closes the bottom sheet
-                            Get.back();
+                            Navigator.pop(context);
                           }
                         },
                         child: const Text("Create Task"),

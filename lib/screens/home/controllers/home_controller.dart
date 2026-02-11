@@ -67,9 +67,10 @@ class HomeController extends GetxController {
     });
   }
 
+  // Add this method to your existing HomeController
   void deleteTask(String taskId) {
     tasks.removeWhere((task) => task.id == taskId);
-    // The 'ever' worker will automatically update storage
+    // 'ever' worker will handle the saving automatically
   }
 
   List<DateTime> get taskDates => tasks
