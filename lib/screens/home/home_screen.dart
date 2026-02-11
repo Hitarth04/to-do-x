@@ -81,30 +81,27 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                           onDismissed: (direction) {
-                            // 1. Capture the task
+                            // 1. Capture Task & Global Index BEFORE delete
                             final deletedTask = task;
-
-                            // 2. Find its ACTUAL index in the main list before deleting
                             final int globalIndex = controller.tasks.indexOf(
                               task,
                             );
 
-                            // 3. Delete
+                            // 2. Remove from controller
                             controller.deleteTask(task.id);
 
-                            // 4. Show Undo Snackbar
-                            Get.rawSnackbar(
-                              messageText: Text(
-                                "${task.title} deleted",
-                                style: const TextStyle(color: Colors.white),
-                              ),
+                            // 3. Show Standard Snackbar (More reliable display)
+                            Get.snackbar(
+                              "Task Deleted",
+                              "${task.title} was removed",
                               snackPosition: SnackPosition.BOTTOM,
                               backgroundColor: Colors.black87,
+                              colorText: Colors.white,
+                              margin: const EdgeInsets.all(10),
                               duration: const Duration(seconds: 4),
                               mainButton: TextButton(
                                 onPressed: () {
-                                  // Logic: Insert back at the specific Global Index
-                                  // We check bounds just to be safe
+                                  // Logic: Re-insert at the correct GLOBAL position
                                   if (globalIndex >= 0 &&
                                       globalIndex <= controller.tasks.length) {
                                     controller.tasks.insert(
@@ -112,10 +109,8 @@ class HomeScreen extends StatelessWidget {
                                       deletedTask,
                                     );
                                   } else {
-                                    // Fallback: just add it to the end
                                     controller.tasks.add(deletedTask);
                                   }
-
                                   if (Get.isSnackbarOpen) Get.back();
                                 },
                                 child: const Text(
@@ -192,11 +187,11 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(height: 10),
                     TextField(
                       controller: taskController,
+                      autofocus: true,
                       decoration: const InputDecoration(
                         hintText: "What needs to be done?",
                         border: OutlineInputBorder(),
                       ),
-                      autofocus: true,
                     ),
                     const SizedBox(height: 10),
                     ListTile(

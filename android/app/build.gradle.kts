@@ -28,6 +28,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+	multiDexEnabled = true
     }
 
     buildTypes {
@@ -41,7 +42,9 @@ android {
 
 flutter { source = "../.." }
 
-dependencies {    
-    // FIX: Kotlin syntax requires parentheses and double quotes
+dependencies {
+    // FIX: Add this line at the bottom of dependencies
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
+    
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version")
 }

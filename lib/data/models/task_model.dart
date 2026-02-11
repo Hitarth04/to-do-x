@@ -5,6 +5,8 @@ class Task {
   bool isHighPriority;
   bool isCompleted;
   DateTime? completedAt;
+
+  // ADD THESE FIELDS
   bool isReminderEnabled;
   int reminderMinutesBefore;
 
@@ -15,6 +17,7 @@ class Task {
     this.isHighPriority = false,
     this.isCompleted = false,
     this.completedAt,
+    // Initialize them
     this.isReminderEnabled = false,
     this.reminderMinutesBefore = 0,
   });
@@ -28,6 +31,7 @@ class Task {
     completedAt: json['completedAt'] != null
         ? DateTime.parse(json['completedAt'])
         : null,
+    // Map them from JSON
     isReminderEnabled: json['isReminderEnabled'] ?? false,
     reminderMinutesBefore: json['reminderMinutesBefore'] ?? 0,
   );
@@ -39,6 +43,7 @@ class Task {
     'isHighPriority': isHighPriority,
     'isCompleted': isCompleted,
     'completedAt': completedAt?.toIso8601String(),
+    // Map them to JSON
     'isReminderEnabled': isReminderEnabled,
     'reminderMinutesBefore': reminderMinutesBefore,
   };
