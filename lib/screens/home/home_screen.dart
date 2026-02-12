@@ -335,11 +335,18 @@ class HomeScreen extends StatelessWidget {
 
                               if (notifyAt != null &&
                                   notifyAt.isAfter(DateTime.now())) {
+                                // The ID must be a unique Integer within the valid range.
+                                // Using milliseconds can sometimes overflow 32-bit integers on Android.
+                                // A safer way is to use a truncated timestamp or a random int.
+                                int uniqueId = DateTime.now()
+                                    .millisecondsSinceEpoch
+                                    .remainder(100000);
+
                                 NotificationService.scheduleNotification(
-                                  DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                                  uniqueId,
                                   taskController.text,
                                   notifyAt,
-                                  minutesBefore, // FIX: Passing 4th argument
+                                  minutesBefore,
                                 );
                               } else {
                                 Get.snackbar(
