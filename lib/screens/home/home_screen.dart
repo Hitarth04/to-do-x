@@ -3,6 +3,9 @@ import 'package:easy_date_timeline/easy_date_timeline.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:confetti/confetti.dart'; // Celebration!
+import 'dart:math'; // For PI
+
 import 'package:to_do_x/core/notification_service.dart';
 import 'package:to_do_x/screens/home/widgets/task_card.dart';
 import 'controllers/home_controller.dart';
@@ -16,33 +19,27 @@ class HomeScreen extends StatelessWidget {
       EasyInfiniteDateTimelineController();
 
   final List<Map<String, dynamic>> categories = [
-    {'name': 'General', 'color': 0xFF9E9E9E},
-    {'name': 'Work', 'color': 0xFF2196F3},
-    {'name': 'Personal', 'color': 0xFF4CAF50},
-    {'name': 'Study', 'color': 0xFFFF9800},
-    {'name': 'Health', 'color': 0xFFF44336},
+    {'name': 'General', 'color': 0xFF9E9E9E}, // Grey
+    {'name': 'Work', 'color': 0xFF2196F3}, // Blue
+    {'name': 'Personal', 'color': 0xFF4CAF50}, // Green
+    {'name': 'Study', 'color': 0xFFFF9800}, // Orange
+    {'name': 'Health', 'color': 0xFFF44336}, // Red
   ];
 
   @override
   Widget build(BuildContext context) {
-    // FIX: Safer initialization.
-    // This prevents "Duplicate Instance" errors or "Controller not found" after hot restart.
+    // Safer initialization for hot restarts
     final HomeController controller = Get.put(
       HomeController(),
       permanent: false,
     );
 
-    // FIX: Ensure 'ever' listeners are set up correctly even after rebuilds
-    // We move the calendar animation logic inside a specialized listener if needed,
-    // but the controller's onInit handles the core logic.
-
-    // Just ensure the calendar syncs when the date changes
+    // Sync Calendar with Controller
     ever(controller.selectedDate, (DateTime date) {
       try {
         _calendarController.animateToDate(date);
       } catch (e) {
-        // Prevent crash if calendar isn't attached yet
-        print("Calendar sync error: $e");
+        // Prevent animation errors during rebuilds
       }
     });
 
@@ -54,6 +51,7 @@ class HomeScreen extends StatelessWidget {
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         actions: [
+          // Theme Toggle
           Obx(
             () => IconButton(
               icon: Icon(
@@ -67,6 +65,7 @@ class HomeScreen extends StatelessWidget {
               onPressed: () => controller.toggleTheme(),
             ),
           ),
+          // Date Picker
           IconButton(
             icon: const Icon(Icons.calendar_month, color: AppColors.primary),
             onPressed: () async {
@@ -81,194 +80,231 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Column(
+      // STACK for Confetti Overlay
+      body: Stack(
+        alignment: Alignment.topCenter,
         children: [
-          _buildHorizontalCalendar(controller, context),
-          const SizedBox(height: 20),
+          // 1. MAIN CONTENT
+          Column(
+            children: [
+              _buildHorizontalCalendar(controller, context),
+              const SizedBox(height: 20),
 
-          // --- DASHBOARD & SEARCH ---
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                // 1. Progress Dashboard
-                Obx(() {
-                  // If no tasks exist AT ALL for this date, hide dashboard
-                  if (controller.filteredTasks.isEmpty &&
-                      controller.searchQuery.value.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
+              // --- DASHBOARD & SEARCH ---
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    // A. Progress Dashboard
+                    Obx(() {
+                      // Hide if no tasks exist
+                      if (controller.filteredTasks.isEmpty &&
+                          controller.searchQuery.value.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
 
-                  return Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.primary,
-                          AppColors.primary.withOpacity(0.7),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      return Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primary,
+                              AppColors.primary.withOpacity(0.7),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              "Daily Progress",
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Daily Progress",
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  "${(controller.completionProgress * 100).toInt()}%",
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
                             ),
+                            const SizedBox(height: 10),
+                            LinearProgressIndicator(
+                              value: controller.completionProgress,
+                              backgroundColor: Colors.white.withOpacity(0.3),
+                              valueColor: const AlwaysStoppedAnimation(
+                                Colors.white,
+                              ),
+                              minHeight: 8,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            const SizedBox(height: 8),
                             Text(
-                              "${(controller.completionProgress * 100).toInt()}%",
+                              controller.progressText,
                               style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 12,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
-                        LinearProgressIndicator(
-                          value: controller.completionProgress,
-                          backgroundColor: Colors.white.withOpacity(0.3),
-                          valueColor: const AlwaysStoppedAnimation(
-                            Colors.white,
-                          ),
-                          minHeight: 8,
-                          borderRadius: BorderRadius.circular(10),
+                      );
+                    }),
+
+                    const SizedBox(height: 15),
+
+                    // B. Search Bar
+                    TextField(
+                      onChanged: (val) => controller.searchQuery.value = val,
+                      decoration: InputDecoration(
+                        hintText: "Search tasks...",
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Colors.grey,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          controller.progressText,
-                          style: GoogleFonts.poppins(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 12,
-                          ),
+                        filled: true,
+                        fillColor: Theme.of(context).cardColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                          borderSide: BorderSide.none,
                         ),
-                      ],
-                    ),
-                  );
-                }),
-
-                const SizedBox(height: 15),
-
-                // 2. Search Bar
-                TextField(
-                  // FIX: Ensure the controller is ready before accessing variables
-                  onChanged: (val) => controller.searchQuery.value = val,
-                  decoration: InputDecoration(
-                    hintText: "Search tasks...",
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    filled: true,
-                    fillColor: Theme.of(context).cardColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 15,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // --------------------------
-          const SizedBox(height: 20),
-          Expanded(
-            child: Obx(
-              () => controller.filteredTasks.isEmpty
-                  ? Center(
-                      child: Text(
-                        controller.searchQuery.value.isEmpty
-                            ? 'No tasks for today!'
-                            : 'No matching tasks found',
-                        style: GoogleFonts.poppins(
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 15,
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: controller.filteredTasks.length,
-                      itemBuilder: (context, index) {
-                        final task = controller.filteredTasks[index];
-                        String formattedTime =
-                            (task.date.hour == 0 && task.date.minute == 0)
-                            ? "All Day"
-                            : DateFormat('hh:mm a').format(task.date);
+                    ),
+                  ],
+                ),
+              ),
 
-                        return Dismissible(
-                          key: Key(task.id),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 20),
-                            color: Colors.red,
-                            child: const Icon(
-                              Icons.delete,
-                              color: Colors.white,
+              // --------------------------
+              const SizedBox(height: 20),
+
+              // C. Task List
+              Expanded(
+                child: Obx(
+                  () => controller.filteredTasks.isEmpty
+                      ? Center(
+                          child: Text(
+                            controller.searchQuery.value.isEmpty
+                                ? 'No tasks for today!'
+                                : 'No matching tasks found',
+                            style: GoogleFonts.poppins(
+                              color: Theme.of(
+                                context,
+                              ).textTheme.bodyLarge?.color,
                             ),
                           ),
-                          onDismissed: (direction) {
-                            final deletedTask = task;
-                            final int globalIndex = controller.tasks.indexOf(
-                              task,
-                            );
-                            controller.deleteTask(task.id);
+                        )
+                      : ListView.builder(
+                          itemCount: controller.filteredTasks.length,
+                          itemBuilder: (context, index) {
+                            final task = controller.filteredTasks[index];
+                            String formattedTime =
+                                (task.date.hour == 0 && task.date.minute == 0)
+                                ? "All Day"
+                                : DateFormat('hh:mm a').format(task.date);
 
-                            Get.snackbar(
-                              "Task Deleted",
-                              "${task.title} was removed",
-                              snackPosition: SnackPosition.BOTTOM,
-                              backgroundColor: Colors.black87,
-                              colorText: Colors.white,
-                              margin: const EdgeInsets.all(10),
-                              duration: const Duration(seconds: 4),
-                              mainButton: TextButton(
-                                onPressed: () {
-                                  if (globalIndex >= 0 &&
-                                      globalIndex <= controller.tasks.length) {
-                                    controller.tasks.insert(
-                                      globalIndex,
-                                      deletedTask,
-                                    );
-                                  } else {
-                                    controller.tasks.add(deletedTask);
-                                  }
-                                  if (Get.isSnackbarOpen) Get.back();
-                                },
-                                child: const Text(
-                                  "UNDO",
-                                  style: TextStyle(color: Colors.yellow),
+                            return Dismissible(
+                              key: Key(task.id),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                color: Colors.red,
+                                child: const Icon(
+                                  Icons.delete,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              onDismissed: (direction) {
+                                final deletedTask = task;
+                                final int globalIndex = controller.tasks
+                                    .indexOf(task);
+                                controller.deleteTask(task.id);
+
+                                Get.snackbar(
+                                  "Task Deleted",
+                                  "${task.title} was removed",
+                                  snackPosition: SnackPosition.BOTTOM,
+                                  backgroundColor: Colors.black87,
+                                  colorText: Colors.white,
+                                  margin: const EdgeInsets.all(10),
+                                  duration: const Duration(seconds: 4),
+                                  mainButton: TextButton(
+                                    onPressed: () {
+                                      if (globalIndex >= 0 &&
+                                          globalIndex <=
+                                              controller.tasks.length) {
+                                        controller.tasks.insert(
+                                          globalIndex,
+                                          deletedTask,
+                                        );
+                                      } else {
+                                        controller.tasks.add(deletedTask);
+                                      }
+                                      if (Get.isSnackbarOpen) Get.back();
+                                    },
+                                    child: const Text(
+                                      "UNDO",
+                                      style: TextStyle(color: Colors.yellow),
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: TaskCard(
+                                title: task.title,
+                                time: formattedTime,
+                                category: task.category,
+                                color: task.color,
+                                onToggle: () =>
+                                    controller.toggleTaskStatus(task),
+                                isHigh: task.isHighPriority,
+                                isDone: task.isCompleted,
+                                onEdit: () => _showAddTaskSheet(
+                                  context,
+                                  taskToEdit: task,
                                 ),
                               ),
                             );
                           },
-                          child: TaskCard(
-                            title: task.title,
-                            time: formattedTime,
-                            category: task.category,
-                            color: task.color,
-                            onToggle: () => controller.toggleTaskStatus(task),
-                            isHigh: task.isHighPriority,
-                            isDone: task.isCompleted,
-                            onEdit: () =>
-                                _showAddTaskSheet(context, taskToEdit: task),
-                          ),
-                        );
-                      },
-                    ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+
+          // 2. CONFETTI WIDGET (Top Layer)
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: controller.confettiController,
+              blastDirection: pi / 2, // Downwards
+              maxBlastForce: 5,
+              minBlastForce: 2,
+              emissionFrequency: 0.05,
+              numberOfParticles: 20,
+              gravity: 0.2,
+              colors: const [
+                Colors.green,
+                Colors.blue,
+                Colors.pink,
+                Colors.orange,
+                Colors.purple,
+              ],
             ),
           ),
         ],
@@ -281,10 +317,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ... (Keep _buildHorizontalCalendar and _showAddTaskSheet exactly as they were) ...
-  // Paste them here to complete the file.
-
-  // Updated Calendar to be Dark Mode aware
+  // Horizontal Calendar with Dark Mode Logic
   Widget _buildHorizontalCalendar(
     HomeController controller,
     BuildContext context,
@@ -365,6 +398,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  // Add/Edit Task Sheet
   void _showAddTaskSheet(BuildContext context, {Task? taskToEdit}) {
     final HomeController controller = Get.find<HomeController>();
     final TextEditingController taskController = TextEditingController();
@@ -389,6 +423,7 @@ class HomeScreen extends StatelessWidget {
     bool isReminderOn = isEditing ? taskToEdit!.isReminderEnabled : false;
     int minutesBefore = isEditing ? taskToEdit!.reminderMinutesBefore : 15;
 
+    // Category & Color Logic
     String selectedCategory = isEditing
         ? taskToEdit!.category
         : categories[0]['name'];
@@ -445,6 +480,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
 
+                    // Category Chips
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(

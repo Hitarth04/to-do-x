@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../../data/models/task_model.dart';
+import 'package:confetti/confetti.dart';
 
 class HomeController extends GetxController {
   var tasks = <Task>[].obs;
@@ -14,9 +15,14 @@ class HomeController extends GetxController {
   // Search State
   var searchQuery = ''.obs;
 
+  late ConfettiController confettiController;
+
   @override
   void onInit() {
     super.onInit();
+    confettiController = ConfettiController(
+      duration: const Duration(seconds: 1),
+    );
 
     // 1. Load Tasks
     var storedTasks = storage.read<List>('tasks');
@@ -151,6 +157,17 @@ class HomeController extends GetxController {
     task.isCompleted = !task.isCompleted;
     task.completedAt = task.isCompleted ? DateTime.now() : null;
     tasks.refresh();
+
+    // NEW: Check if all tasks are done
+    if (completionProgress == 1.0 && task.isCompleted) {
+      confettiController.play();
+    }
+  }
+
+  @override
+  void onClose() {
+    confettiController.dispose(); // Clean up
+    super.onClose();
   }
 
   void clearOldTasks() {
