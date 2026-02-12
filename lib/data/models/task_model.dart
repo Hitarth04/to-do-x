@@ -5,10 +5,10 @@ class Task {
   bool isHighPriority;
   bool isCompleted;
   DateTime? completedAt;
-
-  // ADD THESE FIELDS
   bool isReminderEnabled;
   int reminderMinutesBefore;
+  String category;
+  int color; // We store color as an integer (e.g., 0xFF42A5F5)
 
   Task({
     required this.id,
@@ -17,9 +17,11 @@ class Task {
     this.isHighPriority = false,
     this.isCompleted = false,
     this.completedAt,
-    // Initialize them
     this.isReminderEnabled = false,
     this.reminderMinutesBefore = 0,
+    // Defaults
+    this.category = 'General',
+    this.color = 0xFF9E9E9E, // Grey
   });
 
   factory Task.fromJson(Map<String, dynamic> json) => Task(
@@ -31,9 +33,11 @@ class Task {
     completedAt: json['completedAt'] != null
         ? DateTime.parse(json['completedAt'])
         : null,
-    // Map them from JSON
     isReminderEnabled: json['isReminderEnabled'] ?? false,
     reminderMinutesBefore: json['reminderMinutesBefore'] ?? 0,
+    // Map new fields
+    category: json['category'] ?? 'General',
+    color: json['color'] ?? 0xFF9E9E9E,
   );
 
   Map<String, dynamic> toJson() => {
@@ -43,8 +47,10 @@ class Task {
     'isHighPriority': isHighPriority,
     'isCompleted': isCompleted,
     'completedAt': completedAt?.toIso8601String(),
-    // Map them to JSON
     'isReminderEnabled': isReminderEnabled,
     'reminderMinutesBefore': reminderMinutesBefore,
+    // Save new fields
+    'category': category,
+    'color': color,
   };
 }

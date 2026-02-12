@@ -3,16 +3,26 @@ import 'package:easy_date_timeline/easy_date_timeline.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:to_do_x/data/models/task_model.dart';
+import 'package:to_do_x/core/notification_service.dart';
 import 'package:to_do_x/screens/home/widgets/task_card.dart';
 import 'controllers/home_controller.dart';
 import '../../../core/app_colors.dart';
+import '../../data/models/task_model.dart';
 
 class HomeScreen extends StatelessWidget {
   HomeScreen({super.key});
 
   final EasyInfiniteDateTimelineController _calendarController =
       EasyInfiniteDateTimelineController();
+
+  // Define available categories
+  final List<Map<String, dynamic>> categories = [
+    {'name': 'General', 'color': 0xFF9E9E9E}, // Grey
+    {'name': 'Work', 'color': 0xFF2196F3}, // Blue
+    {'name': 'Personal', 'color': 0xFF4CAF50}, // Green
+    {'name': 'Study', 'color': 0xFFFF9800}, // Orange
+    {'name': 'Health', 'color': 0xFFF44336}, // Red
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +95,6 @@ class HomeScreen extends StatelessWidget {
                             final int globalIndex = controller.tasks.indexOf(
                               task,
                             );
-
                             controller.deleteTask(task.id);
 
                             Get.snackbar(
@@ -111,10 +120,7 @@ class HomeScreen extends StatelessWidget {
                                 },
                                 child: const Text(
                                   "UNDO",
-                                  style: TextStyle(
-                                    color: Colors.yellow,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: TextStyle(color: Colors.yellow),
                                 ),
                               ),
                             );
@@ -122,6 +128,8 @@ class HomeScreen extends StatelessWidget {
                           child: TaskCard(
                             title: task.title,
                             time: formattedTime,
+                            category: task.category,
+                            color: task.color,
                             onToggle: () => controller.toggleTaskStatus(task),
                             isHigh: task.isHighPriority,
                             isDone: task.isCompleted,
@@ -147,10 +155,9 @@ class HomeScreen extends StatelessWidget {
     final HomeController controller = Get.find<HomeController>();
     final TextEditingController taskController = TextEditingController();
 
-    // LOGIC: Is this an Edit or a New Task?
     final bool isEditing = taskToEdit != null;
 
-    // PRE-FILL DATA if editing
+    // Default Values
     if (isEditing) {
       taskController.text = taskToEdit.title;
     }
@@ -158,8 +165,6 @@ class HomeScreen extends StatelessWidget {
     DateTime selectedDate = isEditing
         ? taskToEdit!.date
         : controller.selectedDate.value;
-
-    // Check if the task had a specific time (not 00:00)
     bool hasTime =
         isEditing &&
         (taskToEdit!.date.hour != 0 || taskToEdit!.date.minute != 0);
@@ -170,7 +175,14 @@ class HomeScreen extends StatelessWidget {
     bool isHighPriority = isEditing ? taskToEdit!.isHighPriority : false;
     bool isReminderOn = isEditing ? taskToEdit!.isReminderEnabled : false;
     int minutesBefore = isEditing ? taskToEdit!.reminderMinutesBefore : 15;
-    TimeOfDay? exactReminderTime; // Complex to restore, keeping simple for now
+
+    // Default Category
+    String selectedCategory = isEditing
+        ? taskToEdit!.category
+        : categories[0]['name'];
+    int selectedColor = isEditing ? taskToEdit!.color : categories[0]['color'];
+
+    TimeOfDay? exactReminderTime;
 
     showModalBottomSheet(
       context: context,
@@ -194,13 +206,14 @@ class HomeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isEditing ? "Edit Task" : "New Task", // Dynamic Title
+                      isEditing ? "Edit Task" : "New Task",
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 10),
+
                     TextField(
                       controller: taskController,
                       autofocus: true,
@@ -209,9 +222,60 @@ class HomeScreen extends StatelessWidget {
                         border: OutlineInputBorder(),
                       ),
                     ),
-                    const SizedBox(height: 10),
 
-                    // ... Date Picker (Same as before) ...
+                    const SizedBox(height: 15),
+                    Text(
+                      "Category",
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // CATEGORY SELECTOR
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: categories.map((cat) {
+                          bool isSelected = selectedCategory == cat['name'];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: ChoiceChip(
+                              label: Text(cat['name']),
+                              selected: isSelected,
+                              selectedColor: Color(
+                                cat['color'],
+                              ).withOpacity(0.2),
+                              labelStyle: TextStyle(
+                                color: isSelected
+                                    ? Color(cat['color'])
+                                    : Colors.black,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                              backgroundColor: Colors.grey.shade100,
+                              side: BorderSide(
+                                color: isSelected
+                                    ? Color(cat['color'])
+                                    : Colors.transparent,
+                              ),
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setSheetState(() {
+                                    selectedCategory = cat['name'];
+                                    selectedColor = cat['color'];
+                                  });
+                                }
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
                     ListTile(
                       leading: const Icon(Icons.calendar_today),
                       title: Text(
@@ -233,7 +297,6 @@ class HomeScreen extends StatelessWidget {
                       },
                     ),
 
-                    // ... Time Picker (Same as before) ...
                     ListTile(
                       leading: const Icon(Icons.access_time),
                       title: Text(pickedTime?.format(context) ?? "All Day"),
@@ -254,7 +317,55 @@ class HomeScreen extends StatelessWidget {
                       },
                     ),
 
-                    // ... Priority Switch (Same as before) ...
+                    SwitchListTile(
+                      title: const Text("Set Reminder"),
+                      value: isReminderOn,
+                      onChanged: (val) =>
+                          setSheetState(() => isReminderOn = val),
+                    ),
+
+                    if (isReminderOn) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: DropdownButton<int>(
+                          value: minutesBefore,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(
+                              value: 15,
+                              child: Text("15 Mins Prior"),
+                            ),
+                            DropdownMenuItem(
+                              value: 30,
+                              child: Text("30 Mins Prior"),
+                            ),
+                            DropdownMenuItem(
+                              value: 0,
+                              child: Text("Custom/Exact Time"),
+                            ),
+                          ],
+                          onChanged: (val) =>
+                              setSheetState(() => minutesBefore = val!),
+                        ),
+                      ),
+                      if (minutesBefore == 0)
+                        ListTile(
+                          leading: const Icon(Icons.timer_outlined),
+                          title: Text(
+                            exactReminderTime?.format(context) ??
+                                "Select Exact Time",
+                          ),
+                          onTap: () async {
+                            final time = await showTimePicker(
+                              context: context,
+                              initialTime: TimeOfDay.now(),
+                            );
+                            if (time != null)
+                              setSheetState(() => exactReminderTime = time);
+                          },
+                        ),
+                    ],
+
                     SwitchListTile(
                       title: const Text("High Priority"),
                       value: isHighPriority,
@@ -264,12 +375,15 @@ class HomeScreen extends StatelessWidget {
 
                     const SizedBox(height: 20),
 
-                    // SUBMIT BUTTON
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 15),
+                          backgroundColor: Color(
+                            selectedColor,
+                          ), // Button matches category!
+                          foregroundColor: Colors.white,
                         ),
                         onPressed: () {
                           if (taskController.text.isNotEmpty) {
@@ -281,25 +395,55 @@ class HomeScreen extends StatelessWidget {
                               pickedTime?.minute ?? 0,
                             );
 
-                            // Notification logic (Simplified for brevity - add your schedule code here)
-                            // If editing, you might want to cancel the old notification first!
+                            // Notification Logic (Simplified)
+                            if (isReminderOn) {
+                              int uniqueId = DateTime.now()
+                                  .millisecondsSinceEpoch
+                                  .remainder(100000);
+                              DateTime? notifyAt;
+                              if (minutesBefore == 0 &&
+                                  exactReminderTime != null) {
+                                notifyAt = DateTime(
+                                  selectedDate.year,
+                                  selectedDate.month,
+                                  selectedDate.day,
+                                  exactReminderTime!.hour,
+                                  exactReminderTime!.minute,
+                                );
+                              } else if (minutesBefore > 0) {
+                                notifyAt = taskDateTime.subtract(
+                                  Duration(minutes: minutesBefore),
+                                );
+                              }
+                              if (notifyAt != null &&
+                                  notifyAt.isAfter(DateTime.now())) {
+                                NotificationService.scheduleNotification(
+                                  uniqueId,
+                                  taskController.text,
+                                  notifyAt,
+                                  minutesBefore,
+                                );
+                              }
+                            }
 
                             if (isEditing) {
-                              // UPDATE EXISTING
                               controller.updateTask(
                                 taskToEdit!,
                                 taskController.text,
                                 taskDateTime,
                                 isHighPriority,
+                                selectedCategory, // Save Category
+                                selectedColor, // Save Color
                                 isReminder: isReminderOn,
                                 reminderMins: minutesBefore,
                               );
                             } else {
-                              // CREATE NEW
                               controller.addTask(
                                 taskController.text,
                                 taskDateTime,
                                 isHighPriority,
+                                selectedCategory, // Save Category
+                                selectedColor, // Save Color
                                 isReminder: isReminderOn,
                                 reminderMins: minutesBefore,
                               );

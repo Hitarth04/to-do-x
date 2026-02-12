@@ -10,53 +10,44 @@ class HomeController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-
     var storedTasks = storage.read<List>('tasks');
     if (storedTasks != null) {
       tasks.assignAll(storedTasks.map((task) => Task.fromJson(task)).toList());
     }
-
     ever(tasks, (_) {
       storage.write('tasks', tasks.map((task) => task.toJson()).toList());
     });
-
     clearOldTasks();
   }
 
-  // FIX: Added Sorting Logic
   List<Task> get filteredTasks {
-    // 1. Filter by Date
     var filtered = tasks.where((task) {
       return task.date.year == selectedDate.value.year &&
           task.date.month == selectedDate.value.month &&
           task.date.day == selectedDate.value.day;
     }).toList();
 
-    // 2. Sort the list
     filtered.sort((a, b) {
-      // Rule 1: High Priority First
       if (a.isHighPriority && !b.isHighPriority) return -1;
       if (!a.isHighPriority && b.isHighPriority) return 1;
 
-      // Rule 2: Timed Tasks come before All Day Tasks
-      // We define "All Day" as having hour 0 and minute 0
       bool aIsAllDay = a.date.hour == 0 && a.date.minute == 0;
       bool bIsAllDay = b.date.hour == 0 && b.date.minute == 0;
+      if (!aIsAllDay && bIsAllDay) return -1;
+      if (aIsAllDay && !bIsAllDay) return 1;
 
-      if (!aIsAllDay && bIsAllDay) return -1; // 'a' is timed, so it comes first
-      if (aIsAllDay && !bIsAllDay) return 1; // 'b' is timed, so it comes first
-
-      // Rule 3: Sort by Time (Earlier first)
       return a.date.compareTo(b.date);
     });
-
     return filtered;
   }
 
+  // UPDATED: Now accepts Category and Color
   void addTask(
     String title,
     DateTime date,
-    bool isHigh, {
+    bool isHigh,
+    String category,
+    int color, {
     bool isReminder = false,
     int reminderMins = 0,
   }) {
@@ -68,32 +59,38 @@ class HomeController extends GetxController {
         isHighPriority: isHigh,
         isReminderEnabled: isReminder,
         reminderMinutesBefore: reminderMins,
+        category: category,
+        color: color,
       ),
     );
   }
 
+  // NEW: Update Task Logic
   void updateTask(
     Task task,
     String newTitle,
     DateTime newDate,
-    bool isHigh, {
+    bool isHigh,
+    String newCategory,
+    int newColor, {
     bool isReminder = false,
     int reminderMins = 0,
   }) {
     var index = tasks.indexWhere((t) => t.id == task.id);
     if (index != -1) {
-      // Create a modified copy of the task
       tasks[index] = Task(
-        id: task.id, // Keep original ID
+        id: task.id,
         title: newTitle,
         date: newDate,
         isHighPriority: isHigh,
-        isCompleted: task.isCompleted, // Keep completion status
+        isCompleted: task.isCompleted,
         completedAt: task.completedAt,
         isReminderEnabled: isReminder,
         reminderMinutesBefore: reminderMins,
+        category: newCategory,
+        color: newColor,
       );
-      tasks.refresh(); // Update UI
+      tasks.refresh();
     }
   }
 
@@ -114,11 +111,5 @@ class HomeController extends GetxController {
       }
       return false;
     });
-  }
-
-  List<DateTime> get taskDates {
-    return tasks
-        .map((task) => DateTime(task.date.year, task.date.month, task.date.day))
-        .toList();
   }
 }
