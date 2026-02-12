@@ -28,29 +28,24 @@ class NotificationService {
     }
   }
 
-  // FIX: Added 'minutesBefore' parameter to customize the message
   static Future<void> scheduleNotification(
     int id,
-    String taskTitle,
-    DateTime scheduledTime,
+    String title,
+    DateTime time,
     int minutesBefore,
   ) async {
-    // Logic: Safety check - cannot schedule in the past
-    if (scheduledTime.isBefore(DateTime.now())) return;
+    if (time.isBefore(DateTime.now())) return;
 
-    // Logic: Custom Message based on user preference
-    String bodyText;
-    if (minutesBefore == 0) {
-      bodyText = "It's time for your task!";
-    } else {
-      bodyText = "Is starting in $minutesBefore minutes!";
-    }
+    // Custom Message Logic
+    String bodyText = minutesBefore == 0
+        ? "It's time for your task!"
+        : "Is starting in $minutesBefore minutes!";
 
     await _notifications.zonedSchedule(
       id,
-      taskTitle, // Notification Title = Task Name
-      bodyText, // Notification Body = "Is starting in X minutes!"
-      tz.TZDateTime.from(scheduledTime, tz.local),
+      title,
+      bodyText,
+      tz.TZDateTime.from(time, tz.local),
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'task_channel',

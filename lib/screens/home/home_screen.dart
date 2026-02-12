@@ -81,16 +81,13 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                           onDismissed: (direction) {
-                            // 1. Capture Task & Global Index BEFORE delete
                             final deletedTask = task;
                             final int globalIndex = controller.tasks.indexOf(
                               task,
                             );
 
-                            // 2. Remove from controller
                             controller.deleteTask(task.id);
 
-                            // 3. Show Standard Snackbar (More reliable display)
                             Get.snackbar(
                               "Task Deleted",
                               "${task.title} was removed",
@@ -101,7 +98,6 @@ class HomeScreen extends StatelessWidget {
                               duration: const Duration(seconds: 4),
                               mainButton: TextButton(
                                 onPressed: () {
-                                  // Logic: Re-insert at the correct GLOBAL position
                                   if (globalIndex >= 0 &&
                                       globalIndex <= controller.tasks.length) {
                                     controller.tasks.insert(
@@ -213,9 +209,19 @@ class HomeScreen extends StatelessWidget {
                         }
                       },
                     ),
+
+                    // FEATURE: Clear Time Logic Added Here
                     ListTile(
                       leading: const Icon(Icons.access_time),
                       title: Text(pickedTime?.format(context) ?? "All Day"),
+                      trailing: pickedTime != null
+                          ? IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                setSheetState(() => pickedTime = null);
+                              },
+                            )
+                          : const Icon(Icons.arrow_drop_down),
                       onTap: () async {
                         final time = await showTimePicker(
                           context: context,
@@ -226,6 +232,7 @@ class HomeScreen extends StatelessWidget {
                         }
                       },
                     ),
+
                     SwitchListTile(
                       title: const Text("Set Reminder"),
                       value: isReminderOn,
@@ -297,42 +304,54 @@ class HomeScreen extends StatelessWidget {
                               pickedTime?.minute ?? 0,
                             );
 
-                            // Logic: Notification Scheduling
+                            // FIXED LOGIC: Handling Notifications
                             if (isReminderOn) {
                               DateTime? notifyAt;
+                              bool timeSelected = true;
 
-                              // Case 1: Exact Time (Custom)
-                              if (minutesBefore == 0 &&
-                                  exactReminderTime != null) {
-                                notifyAt = DateTime(
-                                  selectedDate.year,
-                                  selectedDate.month,
-                                  selectedDate.day,
-                                  exactReminderTime!.hour,
-                                  exactReminderTime!.minute,
-                                );
-                              }
-                              // Case 2: Relative Time (15/30 mins before)
-                              else if (minutesBefore > 0) {
+                              if (minutesBefore == 0) {
+                                if (exactReminderTime != null) {
+                                  notifyAt = DateTime(
+                                    selectedDate.year,
+                                    selectedDate.month,
+                                    selectedDate.day,
+                                    exactReminderTime!.hour,
+                                    exactReminderTime!.minute,
+                                  );
+                                } else {
+                                  timeSelected = false;
+                                }
+                              } else {
+                                // Relative Time
                                 notifyAt = taskDateTime.subtract(
                                   Duration(minutes: minutesBefore),
                                 );
                               }
 
-                              // CRITICAL: We only schedule if the calculated 'notifyAt' is in the FUTURE.
+                              if (!timeSelected) {
+                                Get.snackbar(
+                                  "Missing Info",
+                                  "Please select an exact time for the reminder",
+                                  backgroundColor: Colors.redAccent,
+                                  colorText: Colors.white,
+                                );
+                                return; // Stop here, don't create task yet
+                              }
+
                               if (notifyAt != null &&
                                   notifyAt.isAfter(DateTime.now())) {
                                 NotificationService.scheduleNotification(
                                   DateTime.now().millisecondsSinceEpoch ~/ 1000,
                                   taskController.text,
                                   notifyAt,
-                                  minutesBefore, // Pass this to get the custom message
+                                  minutesBefore, // Pass the type
                                 );
                               } else {
-                                // Optional: Warn user if they set a time in the past
                                 Get.snackbar(
-                                  "Reminder Warning",
-                                  "The reminder time is in the past and won't fire.",
+                                  "Warning",
+                                  "Reminder time is in the past! Task saved without reminder.",
+                                  backgroundColor: Colors.orangeAccent,
+                                  colorText: Colors.white,
                                 );
                               }
                             }
