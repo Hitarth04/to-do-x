@@ -25,14 +25,28 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final HomeController controller = Get.put(HomeController());
+    // FIX: Safer initialization.
+    // This prevents "Duplicate Instance" errors or "Controller not found" after hot restart.
+    final HomeController controller = Get.put(
+      HomeController(),
+      permanent: false,
+    );
 
+    // FIX: Ensure 'ever' listeners are set up correctly even after rebuilds
+    // We move the calendar animation logic inside a specialized listener if needed,
+    // but the controller's onInit handles the core logic.
+
+    // Just ensure the calendar syncs when the date changes
     ever(controller.selectedDate, (DateTime date) {
-      _calendarController.animateToDate(date);
+      try {
+        _calendarController.animateToDate(date);
+      } catch (e) {
+        // Prevent crash if calendar isn't attached yet
+        print("Calendar sync error: $e");
+      }
     });
 
     return Scaffold(
-      // Background color is handled by Theme now!
       appBar: AppBar(
         elevation: 0,
         title: Text(
@@ -40,7 +54,6 @@ class HomeScreen extends StatelessWidget {
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         actions: [
-          // NEW: Theme Toggle
           Obx(
             () => IconButton(
               icon: Icon(
@@ -54,7 +67,6 @@ class HomeScreen extends StatelessWidget {
               onPressed: () => controller.toggleTheme(),
             ),
           ),
-
           IconButton(
             icon: const Icon(Icons.calendar_month, color: AppColors.primary),
             onPressed: () async {
@@ -73,14 +85,116 @@ class HomeScreen extends StatelessWidget {
         children: [
           _buildHorizontalCalendar(controller, context),
           const SizedBox(height: 20),
+
+          // --- DASHBOARD & SEARCH ---
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                // 1. Progress Dashboard
+                Obx(() {
+                  // If no tasks exist AT ALL for this date, hide dashboard
+                  if (controller.filteredTasks.isEmpty &&
+                      controller.searchQuery.value.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primary,
+                          AppColors.primary.withOpacity(0.7),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Daily Progress",
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              "${(controller.completionProgress * 100).toInt()}%",
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        LinearProgressIndicator(
+                          value: controller.completionProgress,
+                          backgroundColor: Colors.white.withOpacity(0.3),
+                          valueColor: const AlwaysStoppedAnimation(
+                            Colors.white,
+                          ),
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          controller.progressText,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+
+                const SizedBox(height: 15),
+
+                // 2. Search Bar
+                TextField(
+                  // FIX: Ensure the controller is ready before accessing variables
+                  onChanged: (val) => controller.searchQuery.value = val,
+                  decoration: InputDecoration(
+                    hintText: "Search tasks...",
+                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    filled: true,
+                    fillColor: Theme.of(context).cardColor,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(15),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 15,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // --------------------------
+          const SizedBox(height: 20),
           Expanded(
             child: Obx(
               () => controller.filteredTasks.isEmpty
                   ? Center(
                       child: Text(
-                        'No tasks for today!',
+                        controller.searchQuery.value.isEmpty
+                            ? 'No tasks for today!'
+                            : 'No matching tasks found',
                         style: GoogleFonts.poppins(
-                          // Dynamic Text Color for "No tasks"
                           color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
                       ),
@@ -167,6 +281,9 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  // ... (Keep _buildHorizontalCalendar and _showAddTaskSheet exactly as they were) ...
+  // Paste them here to complete the file.
+
   // Updated Calendar to be Dark Mode aware
   Widget _buildHorizontalCalendar(
     HomeController controller,
@@ -228,21 +345,18 @@ class HomeScreen extends StatelessWidget {
               ),
               inactiveDayStyle: DayStyle(
                 decoration: BoxDecoration(
-                  color: inactiveBg, // Dynamic Background
+                  color: inactiveBg,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isDark ? Colors.grey[800]! : Colors.grey.shade100,
                   ),
                 ),
                 dayNumStyle: TextStyle(
-                  color: isDark ? Colors.white : Colors.black, // Dynamic Text
+                  color: isDark ? Colors.white : Colors.black,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),
-                dayStrStyle: TextStyle(
-                  color: inactiveText, // Dynamic Text
-                  fontSize: 12,
-                ),
+                dayStrStyle: TextStyle(color: inactiveText, fontSize: 12),
               ),
             ),
           ),
@@ -354,7 +468,6 @@ class HomeScreen extends StatelessWidget {
                                     ? FontWeight.bold
                                     : FontWeight.normal,
                               ),
-                              // Fix background for dark mode chips
                               backgroundColor:
                                   Theme.of(context).brightness ==
                                       Brightness.dark

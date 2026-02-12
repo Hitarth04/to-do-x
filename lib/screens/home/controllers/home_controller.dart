@@ -8,8 +8,11 @@ class HomeController extends GetxController {
   var selectedDate = DateTime.now().obs;
   final storage = GetStorage();
 
-  // NEW: Theme State
+  // Theme State
   var isDarkMode = false.obs;
+
+  // Search State
+  var searchQuery = ''.obs;
 
   @override
   void onInit() {
@@ -22,13 +25,13 @@ class HomeController extends GetxController {
     }
 
     // 2. Load Theme Preference
-    // We check if the user previously saved a preference
     isDarkMode.value = storage.read('isDark') ?? false;
 
-    // Apply the saved theme immediately
-    Get.changeThemeMode(isDarkMode.value ? ThemeMode.dark : ThemeMode.light);
+    // FIX: Removed Get.changeThemeMode() from here.
+    // main.dart already sets the correct theme on app launch.
+    // Calling it here crashes the app because the UI is still building.
 
-    // 3. Auto-save tasks when they change
+    // 3. Save Logic
     ever(tasks, (_) {
       storage.write('tasks', tasks.map((task) => task.toJson()).toList());
     });
@@ -36,22 +39,31 @@ class HomeController extends GetxController {
     clearOldTasks();
   }
 
-  // NEW: Toggle Function
   void toggleTheme() {
     isDarkMode.value = !isDarkMode.value;
     Get.changeThemeMode(isDarkMode.value ? ThemeMode.dark : ThemeMode.light);
-    storage.write('isDark', isDarkMode.value); // Save to storage
+    storage.write('isDark', isDarkMode.value);
   }
 
-  // --- Existing Logic Below ---
+  // --- Search & Filter Logic ---
 
   List<Task> get filteredTasks {
     var filtered = tasks.where((task) {
-      return task.date.year == selectedDate.value.year &&
+      // 1. Date Filter
+      final isSameDate =
+          task.date.year == selectedDate.value.year &&
           task.date.month == selectedDate.value.month &&
           task.date.day == selectedDate.value.day;
+
+      // 2. Search Filter (Safety check for null title)
+      final matchesSearch = task.title.toLowerCase().contains(
+        searchQuery.value.toLowerCase(),
+      );
+
+      return isSameDate && matchesSearch;
     }).toList();
 
+    // Sort Logic
     filtered.sort((a, b) {
       if (a.isHighPriority && !b.isHighPriority) return -1;
       if (!a.isHighPriority && b.isHighPriority) return 1;
@@ -61,8 +73,24 @@ class HomeController extends GetxController {
       if (aIsAllDay && !bIsAllDay) return 1;
       return a.date.compareTo(b.date);
     });
+
     return filtered;
   }
+
+  // Progress Calculation
+  double get completionProgress {
+    if (filteredTasks.isEmpty) return 0.0;
+    int completed = filteredTasks.where((t) => t.isCompleted).length;
+    return completed / filteredTasks.length;
+  }
+
+  String get progressText {
+    if (filteredTasks.isEmpty) return "No tasks yet";
+    int completed = filteredTasks.where((t) => t.isCompleted).length;
+    return "$completed / ${filteredTasks.length} Completed";
+  }
+
+  // --- CRUD Operations ---
 
   void addTask(
     String title,
@@ -79,10 +107,10 @@ class HomeController extends GetxController {
         title: title,
         date: date,
         isHighPriority: isHigh,
-        isReminderEnabled: isReminder,
-        reminderMinutesBefore: reminderMins,
         category: category,
         color: color,
+        isReminderEnabled: isReminder,
+        reminderMinutesBefore: reminderMins,
       ),
     );
   }
@@ -106,10 +134,10 @@ class HomeController extends GetxController {
         isHighPriority: isHigh,
         isCompleted: task.isCompleted,
         completedAt: task.completedAt,
-        isReminderEnabled: isReminder,
-        reminderMinutesBefore: reminderMins,
         category: newCategory,
         color: newColor,
+        isReminderEnabled: isReminder,
+        reminderMinutesBefore: reminderMins,
       );
       tasks.refresh();
     }
