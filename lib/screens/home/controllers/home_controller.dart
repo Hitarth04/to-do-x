@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../../data/models/task_model.dart';
@@ -7,18 +8,42 @@ class HomeController extends GetxController {
   var selectedDate = DateTime.now().obs;
   final storage = GetStorage();
 
+  // NEW: Theme State
+  var isDarkMode = false.obs;
+
   @override
   void onInit() {
     super.onInit();
+
+    // 1. Load Tasks
     var storedTasks = storage.read<List>('tasks');
     if (storedTasks != null) {
       tasks.assignAll(storedTasks.map((task) => Task.fromJson(task)).toList());
     }
+
+    // 2. Load Theme Preference
+    // We check if the user previously saved a preference
+    isDarkMode.value = storage.read('isDark') ?? false;
+
+    // Apply the saved theme immediately
+    Get.changeThemeMode(isDarkMode.value ? ThemeMode.dark : ThemeMode.light);
+
+    // 3. Auto-save tasks when they change
     ever(tasks, (_) {
       storage.write('tasks', tasks.map((task) => task.toJson()).toList());
     });
+
     clearOldTasks();
   }
+
+  // NEW: Toggle Function
+  void toggleTheme() {
+    isDarkMode.value = !isDarkMode.value;
+    Get.changeThemeMode(isDarkMode.value ? ThemeMode.dark : ThemeMode.light);
+    storage.write('isDark', isDarkMode.value); // Save to storage
+  }
+
+  // --- Existing Logic Below ---
 
   List<Task> get filteredTasks {
     var filtered = tasks.where((task) {
@@ -30,18 +55,15 @@ class HomeController extends GetxController {
     filtered.sort((a, b) {
       if (a.isHighPriority && !b.isHighPriority) return -1;
       if (!a.isHighPriority && b.isHighPriority) return 1;
-
       bool aIsAllDay = a.date.hour == 0 && a.date.minute == 0;
       bool bIsAllDay = b.date.hour == 0 && b.date.minute == 0;
       if (!aIsAllDay && bIsAllDay) return -1;
       if (aIsAllDay && !bIsAllDay) return 1;
-
       return a.date.compareTo(b.date);
     });
     return filtered;
   }
 
-  // UPDATED: Now accepts Category and Color
   void addTask(
     String title,
     DateTime date,
@@ -65,7 +87,6 @@ class HomeController extends GetxController {
     );
   }
 
-  // NEW: Update Task Logic
   void updateTask(
     Task task,
     String newTitle,

@@ -7,10 +7,10 @@ class TaskCard extends StatelessWidget {
   final String time;
   final bool isHigh;
   final bool isDone;
-  final String category; // NEW
-  final int color; // NEW
+  final String category;
+  final int color;
   final VoidCallback onToggle;
-  final VoidCallback onEdit; // NEW
+  final VoidCallback onEdit;
 
   const TaskCard({
     super.key,
@@ -26,12 +26,19 @@ class TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Detect theme brightness for fine-tuning
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Dynamic Colors from the Theme we set up
+    final cardBgColor = Theme.of(context).cardColor;
+    final mainTextColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subTextColor = isDark ? Colors.grey[400] : AppColors.textGrey;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      // NEW: Clip behavior for the colored strip
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBgColor, // Automatically switches between White and #1E1E1E
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -44,7 +51,7 @@ class TaskCard extends StatelessWidget {
       child: IntrinsicHeight(
         child: Row(
           children: [
-            // NEW: Colored Category Strip
+            // Category Strip
             Container(
               width: 6,
               color: isDone ? Colors.grey.shade300 : Color(color),
@@ -65,10 +72,10 @@ class TaskCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
 
-                    // Title & Info
+                    // Title & Time
                     Expanded(
                       child: GestureDetector(
-                        onTap: onEdit, // Tap text to edit
+                        onTap: onEdit,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -81,8 +88,8 @@ class TaskCard extends StatelessWidget {
                                     ? TextDecoration.lineThrough
                                     : null,
                                 color: isDone
-                                    ? AppColors.textGrey
-                                    : Colors.black87,
+                                    ? subTextColor
+                                    : mainTextColor, // White in Dark Mode
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -112,7 +119,7 @@ class TaskCard extends StatelessWidget {
                                   time,
                                   style: GoogleFonts.poppins(
                                     fontSize: 12,
-                                    color: AppColors.textGrey,
+                                    color: subTextColor,
                                   ),
                                 ),
                               ],
@@ -134,9 +141,9 @@ class TaskCard extends StatelessWidget {
 
                     // Edit Button
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.edit_outlined,
-                        color: Colors.grey,
+                        color: subTextColor,
                         size: 20,
                       ),
                       onPressed: onEdit,

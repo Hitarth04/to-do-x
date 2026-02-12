@@ -15,13 +15,12 @@ class HomeScreen extends StatelessWidget {
   final EasyInfiniteDateTimelineController _calendarController =
       EasyInfiniteDateTimelineController();
 
-  // Define available categories
   final List<Map<String, dynamic>> categories = [
-    {'name': 'General', 'color': 0xFF9E9E9E}, // Grey
-    {'name': 'Work', 'color': 0xFF2196F3}, // Blue
-    {'name': 'Personal', 'color': 0xFF4CAF50}, // Green
-    {'name': 'Study', 'color': 0xFFFF9800}, // Orange
-    {'name': 'Health', 'color': 0xFFF44336}, // Red
+    {'name': 'General', 'color': 0xFF9E9E9E},
+    {'name': 'Work', 'color': 0xFF2196F3},
+    {'name': 'Personal', 'color': 0xFF4CAF50},
+    {'name': 'Study', 'color': 0xFFFF9800},
+    {'name': 'Health', 'color': 0xFFF44336},
   ];
 
   @override
@@ -33,15 +32,29 @@ class HomeScreen extends StatelessWidget {
     });
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      // Background color is handled by Theme now!
       appBar: AppBar(
-        backgroundColor: AppColors.background,
         elevation: 0,
         title: Text(
           'My Tasks',
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         actions: [
+          // NEW: Theme Toggle
+          Obx(
+            () => IconButton(
+              icon: Icon(
+                controller.isDarkMode.value
+                    ? Icons.light_mode
+                    : Icons.dark_mode,
+                color: controller.isDarkMode.value
+                    ? Colors.yellow
+                    : Colors.grey[800],
+              ),
+              onPressed: () => controller.toggleTheme(),
+            ),
+          ),
+
           IconButton(
             icon: const Icon(Icons.calendar_month, color: AppColors.primary),
             onPressed: () async {
@@ -58,7 +71,7 @@ class HomeScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          _buildHorizontalCalendar(controller),
+          _buildHorizontalCalendar(controller, context),
           const SizedBox(height: 20),
           Expanded(
             child: Obx(
@@ -66,7 +79,10 @@ class HomeScreen extends StatelessWidget {
                   ? Center(
                       child: Text(
                         'No tasks for today!',
-                        style: GoogleFonts.poppins(),
+                        style: GoogleFonts.poppins(
+                          // Dynamic Text Color for "No tasks"
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
                       ),
                     )
                   : ListView.builder(
@@ -151,13 +167,96 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  // Updated Calendar to be Dark Mode aware
+  Widget _buildHorizontalCalendar(
+    HomeController controller,
+    BuildContext context,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inactiveBg = Theme.of(context).cardColor;
+    final inactiveText = isDark ? Colors.white : Colors.grey;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Obx(
+                () => Text(
+                  DateFormat('MMMM yyyy').format(controller.selectedDate.value),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: () => controller.selectedDate.value = controller
+                        .selectedDate
+                        .value
+                        .subtract(const Duration(days: 7)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: () => controller.selectedDate.value = controller
+                        .selectedDate
+                        .value
+                        .add(const Duration(days: 7)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Obx(
+          () => EasyInfiniteDateTimeLine(
+            controller: _calendarController,
+            firstDate: DateTime.now().subtract(const Duration(days: 365)),
+            focusDate: controller.selectedDate.value,
+            lastDate: DateTime.now().add(const Duration(days: 365)),
+            onDateChange: (date) => controller.selectedDate.value = date,
+            showTimelineHeader: false,
+            dayProps: EasyDayProps(
+              dayStructure: DayStructure.dayStrDayNum,
+              activeDayStyle: DayStyle(
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              inactiveDayStyle: DayStyle(
+                decoration: BoxDecoration(
+                  color: inactiveBg, // Dynamic Background
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? Colors.grey[800]! : Colors.grey.shade100,
+                  ),
+                ),
+                dayNumStyle: TextStyle(
+                  color: isDark ? Colors.white : Colors.black, // Dynamic Text
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+                dayStrStyle: TextStyle(
+                  color: inactiveText, // Dynamic Text
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showAddTaskSheet(BuildContext context, {Task? taskToEdit}) {
     final HomeController controller = Get.find<HomeController>();
     final TextEditingController taskController = TextEditingController();
 
     final bool isEditing = taskToEdit != null;
 
-    // Default Values
     if (isEditing) {
       taskController.text = taskToEdit.title;
     }
@@ -176,7 +275,6 @@ class HomeScreen extends StatelessWidget {
     bool isReminderOn = isEditing ? taskToEdit!.isReminderEnabled : false;
     int minutesBefore = isEditing ? taskToEdit!.reminderMinutesBefore : 15;
 
-    // Default Category
     String selectedCategory = isEditing
         ? taskToEdit!.category
         : categories[0]['name'];
@@ -233,7 +331,6 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
 
-                    // CATEGORY SELECTOR
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -250,12 +347,19 @@ class HomeScreen extends StatelessWidget {
                               labelStyle: TextStyle(
                                 color: isSelected
                                     ? Color(cat['color'])
-                                    : Colors.black,
+                                    : Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium?.color,
                                 fontWeight: isSelected
                                     ? FontWeight.bold
                                     : FontWeight.normal,
                               ),
-                              backgroundColor: Colors.grey.shade100,
+                              // Fix background for dark mode chips
+                              backgroundColor:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.grey[800]
+                                  : Colors.grey.shade100,
                               side: BorderSide(
                                 color: isSelected
                                     ? Color(cat['color'])
@@ -380,9 +484,7 @@ class HomeScreen extends StatelessWidget {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 15),
-                          backgroundColor: Color(
-                            selectedColor,
-                          ), // Button matches category!
+                          backgroundColor: Color(selectedColor),
                           foregroundColor: Colors.white,
                         ),
                         onPressed: () {
@@ -395,7 +497,6 @@ class HomeScreen extends StatelessWidget {
                               pickedTime?.minute ?? 0,
                             );
 
-                            // Notification Logic (Simplified)
                             if (isReminderOn) {
                               int uniqueId = DateTime.now()
                                   .millisecondsSinceEpoch
@@ -432,8 +533,8 @@ class HomeScreen extends StatelessWidget {
                                 taskController.text,
                                 taskDateTime,
                                 isHighPriority,
-                                selectedCategory, // Save Category
-                                selectedColor, // Save Color
+                                selectedCategory,
+                                selectedColor,
                                 isReminder: isReminderOn,
                                 reminderMins: minutesBefore,
                               );
@@ -442,8 +543,8 @@ class HomeScreen extends StatelessWidget {
                                 taskController.text,
                                 taskDateTime,
                                 isHighPriority,
-                                selectedCategory, // Save Category
-                                selectedColor, // Save Color
+                                selectedCategory,
+                                selectedColor,
                                 isReminder: isReminderOn,
                                 reminderMins: minutesBefore,
                               );
@@ -462,110 +563,6 @@ class HomeScreen extends StatelessWidget {
           },
         );
       },
-    );
-  }
-
-  Widget _buildHorizontalCalendar(HomeController controller) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Obx(
-                () => Text(
-                  DateFormat('MMMM yyyy').format(controller.selectedDate.value),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-                ),
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left),
-                    onPressed: () => controller.selectedDate.value = controller
-                        .selectedDate
-                        .value
-                        .subtract(const Duration(days: 7)),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right),
-                    onPressed: () => controller.selectedDate.value = controller
-                        .selectedDate
-                        .value
-                        .add(const Duration(days: 7)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        Obx(
-          () => EasyInfiniteDateTimeLine(
-            controller: _calendarController,
-            firstDate: DateTime.now().subtract(const Duration(days: 365)),
-            focusDate: controller.selectedDate.value,
-            lastDate: DateTime.now().add(const Duration(days: 365)),
-            onDateChange: (date) => controller.selectedDate.value = date,
-            showTimelineHeader: false,
-            itemBuilder: (context, date, isSelected, onTap) => Obx(() {
-              bool hasTask = controller.tasks.any(
-                (t) =>
-                    t.date.year == date.year &&
-                    t.date.month == date.month &&
-                    t.date.day == date.day,
-              );
-              return InkWell(
-                onTap: onTap,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    color: isSelected ? AppColors.primary : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.primary
-                          : Colors.grey.shade100,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        DateFormat('E').format(date),
-                        style: GoogleFonts.poppins(
-                          color: isSelected ? Colors.white : Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        date.day.toString(),
-                        style: GoogleFonts.poppins(
-                          color: isSelected ? Colors.white : Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                      if (hasTask)
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Colors.white
-                                : AppColors.primary,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ],
     );
   }
 }
