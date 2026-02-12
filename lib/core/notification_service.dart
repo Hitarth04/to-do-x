@@ -8,6 +8,7 @@ class NotificationService {
 
   static Future<void> init() async {
     tz.initializeTimeZones();
+
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -28,35 +29,57 @@ class NotificationService {
     }
   }
 
+  // FIX: Added 'minutesBefore' parameter to match HomeScreen call
   static Future<void> scheduleNotification(
     int id,
     String title,
     DateTime time,
     int minutesBefore,
   ) async {
-    if (time.isBefore(DateTime.now())) return;
+    // 1. Safety check for past times
+    if (time.isBefore(DateTime.now())) {
+      print("NotificationService: Time is in the past. Skipping.");
+      return;
+    }
 
-    // Custom Message Logic
+    // 2. Custom Message Logic
     String bodyText = minutesBefore == 0
         ? "It's time for your task!"
         : "Is starting in $minutesBefore minutes!";
 
-    await _notifications.zonedSchedule(
-      id,
-      title,
-      bodyText,
-      tz.TZDateTime.from(time, tz.local),
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'task_channel',
-          'Reminders',
-          importance: Importance.max,
-          priority: Priority.high,
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+    // 3. CRITICAL FIX: Convert to UTC
+    // This bypasses local timezone issues that cause notifications to fail
+    final tz.TZDateTime scheduledTimeUTC = tz.TZDateTime.from(
+      time.toUtc(),
+      tz.UTC,
     );
+
+    print(
+      "NotificationService: Scheduling '$title' for $scheduledTimeUTC (UTC)",
+    );
+
+    try {
+      await _notifications.zonedSchedule(
+        id,
+        title, // Title of notification
+        bodyText, // Body text (e.g. "Is starting in 15 minutes!")
+        scheduledTimeUTC,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'task_channel',
+            'Reminders',
+            channelDescription: 'Task Deadlines',
+            importance: Importance.max,
+            priority: Priority.high,
+            playSound: true,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } catch (e) {
+      print("NotificationService Error: $e");
+    }
   }
 }

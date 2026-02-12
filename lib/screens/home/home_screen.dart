@@ -209,14 +209,12 @@ class HomeScreen extends StatelessWidget {
                         }
                       },
                     ),
-
-                    // FEATURE: Clear Time Logic Added Here
                     ListTile(
                       leading: const Icon(Icons.access_time),
                       title: Text(pickedTime?.format(context) ?? "All Day"),
                       trailing: pickedTime != null
                           ? IconButton(
-                              icon: const Icon(Icons.close),
+                              icon: const Icon(Icons.close, color: Colors.grey),
                               onPressed: () {
                                 setSheetState(() => pickedTime = null);
                               },
@@ -232,7 +230,6 @@ class HomeScreen extends StatelessWidget {
                         }
                       },
                     ),
-
                     SwitchListTile(
                       title: const Text("Set Reminder"),
                       value: isReminderOn,
@@ -304,7 +301,6 @@ class HomeScreen extends StatelessWidget {
                               pickedTime?.minute ?? 0,
                             );
 
-                            // FIXED LOGIC: Handling Notifications
                             if (isReminderOn) {
                               DateTime? notifyAt;
                               bool timeSelected = true;
@@ -322,7 +318,6 @@ class HomeScreen extends StatelessWidget {
                                   timeSelected = false;
                                 }
                               } else {
-                                // Relative Time
                                 notifyAt = taskDateTime.subtract(
                                   Duration(minutes: minutesBefore),
                                 );
@@ -335,7 +330,7 @@ class HomeScreen extends StatelessWidget {
                                   backgroundColor: Colors.redAccent,
                                   colorText: Colors.white,
                                 );
-                                return; // Stop here, don't create task yet
+                                return;
                               }
 
                               if (notifyAt != null &&
@@ -344,7 +339,7 @@ class HomeScreen extends StatelessWidget {
                                   DateTime.now().millisecondsSinceEpoch ~/ 1000,
                                   taskController.text,
                                   notifyAt,
-                                  minutesBefore, // Pass the type
+                                  minutesBefore, // FIX: Passing 4th argument
                                 );
                               } else {
                                 Get.snackbar(

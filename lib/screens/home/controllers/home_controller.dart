@@ -11,13 +11,11 @@ class HomeController extends GetxController {
   void onInit() {
     super.onInit();
 
-    // Load tasks from storage
     var storedTasks = storage.read<List>('tasks');
     if (storedTasks != null) {
       tasks.assignAll(storedTasks.map((task) => Task.fromJson(task)).toList());
     }
 
-    // Auto-save whenever 'tasks' list changes
     ever(tasks, (_) {
       storage.write('tasks', tasks.map((task) => task.toJson()).toList());
     });
@@ -25,12 +23,34 @@ class HomeController extends GetxController {
     clearOldTasks();
   }
 
+  // FIX: Added Sorting Logic
   List<Task> get filteredTasks {
-    return tasks.where((task) {
+    // 1. Filter by Date
+    var filtered = tasks.where((task) {
       return task.date.year == selectedDate.value.year &&
           task.date.month == selectedDate.value.month &&
           task.date.day == selectedDate.value.day;
     }).toList();
+
+    // 2. Sort the list
+    filtered.sort((a, b) {
+      // Rule 1: High Priority First
+      if (a.isHighPriority && !b.isHighPriority) return -1;
+      if (!a.isHighPriority && b.isHighPriority) return 1;
+
+      // Rule 2: Timed Tasks come before All Day Tasks
+      // We define "All Day" as having hour 0 and minute 0
+      bool aIsAllDay = a.date.hour == 0 && a.date.minute == 0;
+      bool bIsAllDay = b.date.hour == 0 && b.date.minute == 0;
+
+      if (!aIsAllDay && bIsAllDay) return -1; // 'a' is timed, so it comes first
+      if (aIsAllDay && !bIsAllDay) return 1; // 'b' is timed, so it comes first
+
+      // Rule 3: Sort by Time (Earlier first)
+      return a.date.compareTo(b.date);
+    });
+
+    return filtered;
   }
 
   void addTask(
@@ -52,6 +72,10 @@ class HomeController extends GetxController {
     );
   }
 
+  void deleteTask(String taskId) {
+    tasks.removeWhere((task) => task.id == taskId);
+  }
+
   void toggleTaskStatus(Task task) {
     task.isCompleted = !task.isCompleted;
     task.completedAt = task.isCompleted ? DateTime.now() : null;
@@ -67,13 +91,9 @@ class HomeController extends GetxController {
     });
   }
 
-  // Add this method to your existing HomeController
-  void deleteTask(String taskId) {
-    tasks.removeWhere((task) => task.id == taskId);
-    // 'ever' worker will handle the saving automatically
+  List<DateTime> get taskDates {
+    return tasks
+        .map((task) => DateTime(task.date.year, task.date.month, task.date.day))
+        .toList();
   }
-
-  List<DateTime> get taskDates => tasks
-      .map((t) => DateTime(t.date.year, t.date.month, t.date.day))
-      .toList();
 }
