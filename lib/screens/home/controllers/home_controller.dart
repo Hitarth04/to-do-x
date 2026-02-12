@@ -72,6 +72,31 @@ class HomeController extends GetxController {
     );
   }
 
+  void updateTask(
+    Task task,
+    String newTitle,
+    DateTime newDate,
+    bool isHigh, {
+    bool isReminder = false,
+    int reminderMins = 0,
+  }) {
+    var index = tasks.indexWhere((t) => t.id == task.id);
+    if (index != -1) {
+      // Create a modified copy of the task
+      tasks[index] = Task(
+        id: task.id, // Keep original ID
+        title: newTitle,
+        date: newDate,
+        isHighPriority: isHigh,
+        isCompleted: task.isCompleted, // Keep completion status
+        completedAt: task.completedAt,
+        isReminderEnabled: isReminder,
+        reminderMinutesBefore: reminderMins,
+      );
+      tasks.refresh(); // Update UI
+    }
+  }
+
   void deleteTask(String taskId) {
     tasks.removeWhere((task) => task.id == taskId);
   }
