@@ -5,7 +5,7 @@ import '../../../data/models/note_model.dart';
 
 class NotesController extends GetxController {
   var notes = <Note>[].obs;
-  var searchQuery = ''.obs; // Search State
+  var searchQuery = ''.obs;
   final storage = GetStorage();
 
   final List<int> pastelColors = [
@@ -32,22 +32,35 @@ class NotesController extends GetxController {
     });
   }
 
-  // SEARCH LOGIC
+  // UPDATED: Search + Sorting Logic
   List<Note> get filteredNotes {
-    if (searchQuery.value.isEmpty) return notes;
-    return notes.where((note) {
-      return note.title.toLowerCase().contains(
-            searchQuery.value.toLowerCase(),
-          ) ||
-          note.content.toLowerCase().contains(searchQuery.value.toLowerCase());
-    }).toList();
+    List<Note> result;
+
+    // 1. Filter by Search
+    if (searchQuery.value.isEmpty) {
+      result = [...notes];
+    } else {
+      result = notes.where((note) {
+        return note.title.toLowerCase().contains(
+              searchQuery.value.toLowerCase(),
+            ) ||
+            note.content.toLowerCase().contains(
+              searchQuery.value.toLowerCase(),
+            );
+      }).toList();
+    }
+
+    // 2. Sort: Pinned First, then Newest Date First
+    result.sort((a, b) {
+      if (a.isPinned && !b.isPinned) return -1; // a comes first
+      if (!a.isPinned && b.isPinned) return 1; // b comes first
+      return b.date.compareTo(a.date); // If pin state is same, sort by date
+    });
+
+    return result;
   }
 
   void addNote(Note note) {
-    // If no color assigned, pick random
-    if (note.color == 0) {
-      note.color = pastelColors[Random().nextInt(pastelColors.length)];
-    }
     notes.add(note);
   }
 

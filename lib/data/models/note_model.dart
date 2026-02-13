@@ -4,12 +4,13 @@ class Note {
   String content;
   DateTime date;
   int color;
+  String? backgroundImagePath;
+  List<String> contentImages;
+  bool isTodoList;
+  List<Map<String, dynamic>> todoItems;
 
-  // NEW FIELDS
-  String? backgroundImagePath; // Path to local background image
-  List<String> contentImages; // Paths to attached images
-  bool isTodoList; // Toggle between Text and Checkbox
-  List<Map<String, dynamic>> todoItems; // [{'text': 'Milk', 'done': false}]
+  // NEW: Pin Field
+  bool isPinned;
 
   Note({
     required this.id,
@@ -21,6 +22,7 @@ class Note {
     this.contentImages = const [],
     this.isTodoList = false,
     this.todoItems = const [],
+    this.isPinned = false, // Default to false
   });
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -33,6 +35,7 @@ class Note {
     contentImages: List<String>.from(json['contentImages'] ?? []),
     isTodoList: json['isTodoList'] ?? false,
     todoItems: List<Map<String, dynamic>>.from(json['todoItems'] ?? []),
+    isPinned: json['isPinned'] ?? false,
   );
 
   Map<String, dynamic> toJson() => {
@@ -45,5 +48,6 @@ class Note {
     'contentImages': contentImages,
     'isTodoList': isTodoList,
     'todoItems': todoItems,
+    'isPinned': isPinned,
   };
 }

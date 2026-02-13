@@ -114,84 +114,109 @@ class NotesScreen extends StatelessWidget {
                 )
               : null,
           borderRadius: BorderRadius.circular(16),
+          // Add a subtle border for pinned notes to make them pop
+          border: note.isPinned
+              ? Border.all(color: Colors.amber, width: 2)
+              : null,
         ),
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            if (note.contentImages.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(
-                    File(note.contentImages.first),
-                    height: 100,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (note.contentImages.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        File(note.contentImages.first),
+                        height: 100,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                if (note.title.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      right: 20.0,
+                    ), // Make room for pin icon
+                    child: Text(
+                      note.title,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                if (note.isTodoList)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: note.todoItems
+                        .take(3)
+                        .map(
+                          (item) => Row(
+                            children: [
+                              Icon(
+                                item['done']
+                                    ? Icons.check_box
+                                    : Icons.check_box_outline_blank,
+                                size: 14,
+                                color: textColor.withOpacity(0.7),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  item['text'],
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: textColor.withOpacity(0.7),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                        .toList(),
+                  )
+                else
+                  Text(
+                    note.content,
+                    maxLines: 6,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: textColor.withOpacity(0.8),
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                Text(
+                  DateFormat('MMM dd').format(note.date),
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    color: textColor.withOpacity(0.5),
                   ),
                 ),
-              ),
-            if (note.title.isNotEmpty)
-              Text(
-                note.title,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: textColor,
-                ),
-              ),
-            const SizedBox(height: 8),
-            if (note.isTodoList)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: note.todoItems
-                    .take(3)
-                    .map(
-                      (item) => Row(
-                        children: [
-                          Icon(
-                            item['done']
-                                ? Icons.check_box
-                                : Icons.check_box_outline_blank,
-                            size: 14,
-                            color: textColor.withOpacity(0.7),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              item['text'],
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: textColor.withOpacity(0.7),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                    .toList(),
-              )
-            else
-              Text(
-                note.content,
-                maxLines: 6,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: textColor.withOpacity(0.8),
-                ),
-              ),
-            const SizedBox(height: 10),
-            Text(
-              DateFormat('MMM dd').format(note.date),
-              style: GoogleFonts.poppins(
-                fontSize: 10,
-                color: textColor.withOpacity(0.5),
-              ),
+              ],
             ),
+
+            // PIN ICON OVERLAY
+            if (note.isPinned)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: Icon(
+                  Icons.push_pin,
+                  size: 18,
+                  color: hasBgImage ? Colors.white : Colors.black54,
+                ),
+              ),
           ],
         ),
       ),
@@ -217,11 +242,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   List<String> _attachedImages = [];
   bool _isTodoList = false;
   List<Map<String, dynamic>> _todoItems = [];
+  bool _isPinned = false; // NEW STATE
 
-  // Voice Logic
   late stt.SpeechToText _speech;
   bool _isListening = false;
-  String _textBeforeListening = ""; // Critical for preventing duplication
+  String _textBeforeListening = "";
 
   @override
   void initState() {
@@ -233,6 +258,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _attachedImages = List.from(widget.note?.contentImages ?? []);
     _isTodoList = widget.note?.isTodoList ?? false;
     _todoItems = List.from(widget.note?.todoItems ?? []);
+    _isPinned = widget.note?.isPinned ?? false; // LOAD STATE
 
     _speech = stt.SpeechToText();
   }
@@ -263,6 +289,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         contentImages: _attachedImages,
         isTodoList: _isTodoList,
         todoItems: _todoItems,
+        isPinned: _isPinned, // SAVE STATE
       );
       if (widget.note == null)
         controller.addNote(newNote);
@@ -272,10 +299,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     Get.back();
   }
 
-  // --- FIXED VOICE LOGIC ---
   void _listen() async {
     if (!_isListening) {
-      // 1. Explicit Permission Request
       var status = await Permission.microphone.request();
       if (status != PermissionStatus.granted) {
         Get.snackbar(
@@ -288,12 +313,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         return;
       }
 
-      // 2. Initialize
       bool available = await _speech.initialize(
         onStatus: (status) {
-          if (status == 'done' || status == 'notListening') {
+          if (status == 'done' || status == 'notListening')
             setState(() => _isListening = false);
-          }
         },
         onError: (error) => setState(() => _isListening = false),
       );
@@ -301,7 +324,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       if (available) {
         setState(() {
           _isListening = true;
-          // 3. Capture baseline text to prevent duplication
           if (_isTodoList && _todoItems.isNotEmpty) {
             _textBeforeListening = _todoItems.last['text'];
           } else {
@@ -312,26 +334,18 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         _speech.listen(
           onResult: (val) {
             setState(() {
-              // 4. Combine Baseline + New Speech (val.recognizedWords grows as you speak)
               String newText = "$_textBeforeListening ${val.recognizedWords}"
                   .trim();
-
               if (_isTodoList && _todoItems.isNotEmpty) {
                 _todoItems.last['text'] = newText;
               } else {
                 contentCtrl.text = newText;
-                // Move cursor to end
                 contentCtrl.selection = TextSelection.fromPosition(
                   TextPosition(offset: contentCtrl.text.length),
                 );
               }
             });
           },
-          listenFor: const Duration(seconds: 30),
-          pauseFor: const Duration(seconds: 5),
-          localeId: "en_US",
-          cancelOnError: true,
-          partialResults: true,
         );
       }
     } else {
@@ -379,6 +393,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             onPressed: _saveAndClose,
           ),
           actions: [
+            // NEW: PIN BUTTON
+            IconButton(
+              icon: Icon(
+                _isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                color: _isPinned ? Colors.amber : iconColor,
+              ),
+              onPressed: () => setState(() => _isPinned = !_isPinned),
+              tooltip: "Pin Note",
+            ),
             if (widget.note != null)
               IconButton(
                 icon: Icon(Icons.delete_outline, color: iconColor),
@@ -584,7 +607,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           IconButton(
             icon: Icon(Icons.mic, color: _isListening ? Colors.red : iconColor),
             onPressed: _listen,
-          ), // Fixed icon
+          ),
           IconButton(
             icon: Icon(Icons.share_outlined, color: iconColor),
             onPressed: () {
