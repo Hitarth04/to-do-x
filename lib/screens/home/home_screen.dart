@@ -441,11 +441,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     String selectedCategory = isEditing
         ? taskToEdit!.category
-        : controller.categories[0]['name'];
+        : controller.categories.isNotEmpty
+        ? controller.categories[0]['name']
+        : 'General';
     int selectedColor = isEditing
         ? taskToEdit!.color
-        : controller.categories[0]['color'];
-
+        : controller.categories.isNotEmpty
+        ? controller.categories[0]['color']
+        : 0xFF6C63FF;
     TimeOfDay? exactReminderTime;
 
     showModalBottomSheet(

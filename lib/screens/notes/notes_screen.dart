@@ -156,7 +156,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               if (note == null) {
                 controller.addNote(titleCtrl.text, contentCtrl.text);
               } else {
-                controller.updateNote(note!, titleCtrl.text, contentCtrl.text);
+                controller.updateNote(note, titleCtrl.text, contentCtrl.text);
               }
             }
             Get.back();

@@ -110,7 +110,9 @@ class HomeController extends GetxController {
 
   void _scheduleTaskNotification(Task task) {
     // 1. Cancel any existing notification for this task ID
-    NotificationService.cancelNotification(task.id.hashCode);
+    final notificationId =
+        int.parse(task.id) % 2147483647; // Ensure within 32-bit int range
+    NotificationService.cancelNotification(notificationId);
 
     if (!task.isReminderEnabled) return;
 
@@ -126,7 +128,7 @@ class HomeController extends GetxController {
 
     if (notifyAt.isAfter(DateTime.now())) {
       NotificationService.scheduleNotification(
-        task.id.hashCode, // Unique Int ID
+        notificationId,
         task.title,
         notifyAt,
         task.reminderMinutesBefore,
