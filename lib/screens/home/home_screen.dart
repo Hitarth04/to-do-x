@@ -7,7 +7,9 @@ import 'package:confetti/confetti.dart'; // Celebration!
 import 'dart:math'; // For PI
 
 import 'package:to_do_x/core/notification_service.dart';
+import 'package:to_do_x/screens/home/widgets/special_fab.dart';
 import 'package:to_do_x/screens/home/widgets/task_card.dart';
+import 'package:to_do_x/screens/notes/notes_screen.dart';
 import 'controllers/home_controller.dart';
 import '../../../core/app_colors.dart';
 import '../../data/models/task_model.dart';
@@ -309,10 +311,14 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        onPressed: () => _showAddTaskSheet(context),
-        child: const Icon(Icons.add, color: Colors.white),
+      // floatingActionButton: FloatingActionButton(
+      //   backgroundColor: AppColors.primary,
+      //   onPressed: () => _showAddTaskSheet(context),
+      //   child: const Icon(Icons.add, color: Colors.white),
+      // ),
+      floatingActionButton: SpeedDialFab(
+        onTask: () => _showAddTaskSheet(context),
+        onNote: () => Get.to(() => const NotesScreen()), // Import NotesScreen!
       ),
     );
   }
