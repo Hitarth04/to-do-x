@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import '../../../data/models/task_model.dart';
 import 'package:confetti/confetti.dart';
+import '../../../data/models/task_model.dart';
+import 'package:to_do_x/core/notification_service.dart';
 
 class HomeController extends GetxController {
   var tasks = <Task>[].obs;
   var selectedDate = DateTime.now().obs;
   final storage = GetStorage();
+  late ConfettiController confettiController;
 
   // Theme State
   var isDarkMode = false.obs;
@@ -15,7 +17,13 @@ class HomeController extends GetxController {
   // Search State
   var searchQuery = ''.obs;
 
-  late ConfettiController confettiController;
+  final List<Map<String, dynamic>> categories = [
+    {'name': 'General', 'color': 0xFF9E9E9E},
+    {'name': 'Work', 'color': 0xFF2196F3},
+    {'name': 'Personal', 'color': 0xFF4CAF50},
+    {'name': 'Study', 'color': 0xFFFF9800},
+    {'name': 'Health', 'color': 0xFFF44336},
+  ];
 
   @override
   void onInit() {
@@ -33,16 +41,18 @@ class HomeController extends GetxController {
     // 2. Load Theme Preference
     isDarkMode.value = storage.read('isDark') ?? false;
 
-    // FIX: Removed Get.changeThemeMode() from here.
-    // main.dart already sets the correct theme on app launch.
-    // Calling it here crashes the app because the UI is still building.
-
     // 3. Save Logic
     ever(tasks, (_) {
       storage.write('tasks', tasks.map((task) => task.toJson()).toList());
     });
 
     clearOldTasks();
+  }
+
+  @override
+  void onClose() {
+    confettiController.dispose();
+    super.onClose();
   }
 
   void toggleTheme() {
@@ -61,7 +71,7 @@ class HomeController extends GetxController {
           task.date.month == selectedDate.value.month &&
           task.date.day == selectedDate.value.day;
 
-      // 2. Search Filter (Safety check for null title)
+      // 2. Search Filter
       final matchesSearch = task.title.toLowerCase().contains(
         searchQuery.value.toLowerCase(),
       );
@@ -98,6 +108,32 @@ class HomeController extends GetxController {
 
   // --- CRUD Operations ---
 
+  void _scheduleTaskNotification(Task task) {
+    // 1. Cancel any existing notification for this task ID
+    NotificationService.cancelNotification(task.id.hashCode);
+
+    if (!task.isReminderEnabled) return;
+
+    DateTime? notifyAt;
+    if (task.reminderMinutesBefore == 0) {
+      // Logic for exact time
+      notifyAt = task.date;
+    } else {
+      notifyAt = task.date.subtract(
+        Duration(minutes: task.reminderMinutesBefore),
+      );
+    }
+
+    if (notifyAt.isAfter(DateTime.now())) {
+      NotificationService.scheduleNotification(
+        task.id.hashCode, // Unique Int ID
+        task.title,
+        notifyAt,
+        task.reminderMinutesBefore,
+      );
+    }
+  }
+
   void addTask(
     String title,
     DateTime date,
@@ -107,18 +143,19 @@ class HomeController extends GetxController {
     bool isReminder = false,
     int reminderMins = 0,
   }) {
-    tasks.add(
-      Task(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: title,
-        date: date,
-        isHighPriority: isHigh,
-        category: category,
-        color: color,
-        isReminderEnabled: isReminder,
-        reminderMinutesBefore: reminderMins,
-      ),
+    final newTask = Task(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: title,
+      date: date,
+      isHighPriority: isHigh,
+      category: category,
+      color: color,
+      isReminderEnabled: isReminder,
+      reminderMinutesBefore: reminderMins,
     );
+
+    tasks.add(newTask);
+    _scheduleTaskNotification(newTask);
   }
 
   void updateTask(
@@ -133,7 +170,7 @@ class HomeController extends GetxController {
   }) {
     var index = tasks.indexWhere((t) => t.id == task.id);
     if (index != -1) {
-      tasks[index] = Task(
+      final updatedTask = Task(
         id: task.id,
         title: newTitle,
         date: newDate,
@@ -145,11 +182,17 @@ class HomeController extends GetxController {
         isReminderEnabled: isReminder,
         reminderMinutesBefore: reminderMins,
       );
+
+      tasks[index] = updatedTask;
       tasks.refresh();
+      _scheduleTaskNotification(
+        updatedTask,
+      ); // Handles update/cancel automatically
     }
   }
 
   void deleteTask(String taskId) {
+    NotificationService.cancelNotification(taskId.hashCode);
     tasks.removeWhere((task) => task.id == taskId);
   }
 
@@ -158,16 +201,9 @@ class HomeController extends GetxController {
     task.completedAt = task.isCompleted ? DateTime.now() : null;
     tasks.refresh();
 
-    // NEW: Check if all tasks are done
     if (completionProgress == 1.0 && task.isCompleted) {
       confettiController.play();
     }
-  }
-
-  @override
-  void onClose() {
-    confettiController.dispose(); // Clean up
-    super.onClose();
   }
 
   void clearOldTasks() {

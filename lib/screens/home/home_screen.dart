@@ -3,47 +3,53 @@ import 'package:easy_date_timeline/easy_date_timeline.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:confetti/confetti.dart'; // Celebration!
-import 'dart:math'; // For PI
-
-import 'package:to_do_x/core/notification_service.dart';
-import 'package:to_do_x/screens/home/widgets/special_fab.dart';
+import 'package:confetti/confetti.dart';
+import 'dart:math';
 import 'package:to_do_x/screens/home/widgets/task_card.dart';
-import 'package:to_do_x/screens/notes/notes_screen.dart';
+import 'package:to_do_x/screens/home/widgets/special_fab.dart';
 import 'controllers/home_controller.dart';
 import '../../../core/app_colors.dart';
 import '../../data/models/task_model.dart';
+import '../notes/notes_screen.dart';
 
-class HomeScreen extends StatelessWidget {
-  HomeScreen({super.key});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
   final EasyInfiniteDateTimelineController _calendarController =
       EasyInfiniteDateTimelineController();
 
-  final List<Map<String, dynamic>> categories = [
-    {'name': 'General', 'color': 0xFF9E9E9E}, // Grey
-    {'name': 'Work', 'color': 0xFF2196F3}, // Blue
-    {'name': 'Personal', 'color': 0xFF4CAF50}, // Green
-    {'name': 'Study', 'color': 0xFFFF9800}, // Orange
-    {'name': 'Health', 'color': 0xFFF44336}, // Red
-  ];
+  Worker? _dateWorker;
 
   @override
-  Widget build(BuildContext context) {
-    // Safer initialization for hot restarts
-    final HomeController controller = Get.put(
-      HomeController(),
-      permanent: false,
-    );
+  void initState() {
+    super.initState();
+    // Safe initialization
+    final controller = Get.put(HomeController(), permanent: false);
 
-    // Sync Calendar with Controller
-    ever(controller.selectedDate, (DateTime date) {
+    // FIX: Initialize the listener only ONCE
+    _dateWorker = ever(controller.selectedDate, (DateTime date) {
       try {
         _calendarController.animateToDate(date);
       } catch (e) {
-        // Prevent animation errors during rebuilds
+        debugPrint("Calendar sync error: $e");
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _dateWorker?.dispose(); // Prevent Memory Leak
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final HomeController controller = Get.find<HomeController>();
 
     return Scaffold(
       appBar: AppBar(
@@ -53,7 +59,6 @@ class HomeScreen extends StatelessWidget {
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         actions: [
-          // Theme Toggle
           Obx(
             () => IconButton(
               icon: Icon(
@@ -67,7 +72,6 @@ class HomeScreen extends StatelessWidget {
               onPressed: () => controller.toggleTheme(),
             ),
           ),
-          // Date Picker
           IconButton(
             icon: const Icon(Icons.calendar_month, color: AppColors.primary),
             onPressed: () async {
@@ -82,92 +86,30 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      // STACK for Confetti Overlay
       body: Stack(
         alignment: Alignment.topCenter,
         children: [
-          // 1. MAIN CONTENT
           Column(
             children: [
               _buildHorizontalCalendar(controller, context),
               const SizedBox(height: 20),
 
-              // --- DASHBOARD & SEARCH ---
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   children: [
-                    // A. Progress Dashboard
+                    // Dashboard
                     Obx(() {
-                      // Hide if no tasks exist
                       if (controller.filteredTasks.isEmpty &&
                           controller.searchQuery.value.isEmpty) {
                         return const SizedBox.shrink();
                       }
-
-                      return Container(
-                        padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppColors.primary,
-                              AppColors.primary.withOpacity(0.7),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  "Daily Progress",
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                Text(
-                                  "${(controller.completionProgress * 100).toInt()}%",
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            LinearProgressIndicator(
-                              value: controller.completionProgress,
-                              backgroundColor: Colors.white.withOpacity(0.3),
-                              valueColor: const AlwaysStoppedAnimation(
-                                Colors.white,
-                              ),
-                              minHeight: 8,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              controller.progressText,
-                              style: GoogleFonts.poppins(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
+                      return _buildDashboard(controller);
                     }),
 
                     const SizedBox(height: 15),
 
-                    // B. Search Bar
+                    // Search Bar
                     TextField(
                       onChanged: (val) => controller.searchQuery.value = val,
                       decoration: InputDecoration(
@@ -192,10 +134,8 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              // --------------------------
               const SizedBox(height: 20),
 
-              // C. Task List
               Expanded(
                 child: Obx(
                   () => controller.filteredTasks.isEmpty
@@ -215,8 +155,9 @@ class HomeScreen extends StatelessWidget {
                           itemCount: controller.filteredTasks.length,
                           itemBuilder: (context, index) {
                             final task = controller.filteredTasks[index];
-                            String formattedTime =
-                                (task.date.hour == 0 && task.date.minute == 0)
+                            final bool isAllDay =
+                                task.date.hour == 0 && task.date.minute == 0;
+                            String formattedTime = isAllDay
                                 ? "All Day"
                                 : DateFormat('hh:mm a').format(task.date);
 
@@ -248,9 +189,7 @@ class HomeScreen extends StatelessWidget {
                                   duration: const Duration(seconds: 4),
                                   mainButton: TextButton(
                                     onPressed: () {
-                                      if (globalIndex >= 0 &&
-                                          globalIndex <=
-                                              controller.tasks.length) {
+                                      if (globalIndex >= 0) {
                                         controller.tasks.insert(
                                           globalIndex,
                                           deletedTask,
@@ -289,12 +228,11 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
 
-          // 2. CONFETTI WIDGET (Top Layer)
           Align(
             alignment: Alignment.topCenter,
             child: ConfettiWidget(
               confettiController: controller.confettiController,
-              blastDirection: pi / 2, // Downwards
+              blastDirection: pi / 2,
               maxBlastForce: 5,
               minBlastForce: 2,
               emissionFrequency: 0.05,
@@ -311,31 +249,77 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      // floatingActionButton: FloatingActionButton(
-      //   backgroundColor: AppColors.primary,
-      //   onPressed: () => _showAddTaskSheet(context),
-      //   child: const Icon(Icons.add, color: Colors.white),
-      // ),
       floatingActionButton: SpeedDialFab(
         onTask: () => _showAddTaskSheet(context),
-        onNote: () => Get.to(() => const NotesScreen()), // Import NotesScreen!
+        onNote: () => Get.to(() => const NotesScreen()),
       ),
     );
   }
 
-  // Horizontal Calendar with Dark Mode Logic
+  Widget _buildDashboard(HomeController controller) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Daily Progress",
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              Text(
+                "${(controller.completionProgress * 100).toInt()}%",
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LinearProgressIndicator(
+            value: controller.completionProgress,
+            backgroundColor: Colors.white.withOpacity(0.3),
+            valueColor: const AlwaysStoppedAnimation(Colors.white),
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            controller.progressText,
+            style: GoogleFonts.poppins(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHorizontalCalendar(
     HomeController controller,
     BuildContext context,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Define colors for inactive days
     final inactiveBg = Theme.of(context).cardColor;
     final inactiveText = isDark ? Colors.white : Colors.grey;
-    final todayText = isDark
-        ? Colors.white
-        : Colors.black; // Fix for Today's text
+    final todayText = isDark ? Colors.white : Colors.black;
 
     return Column(
       children: [
@@ -381,8 +365,6 @@ class HomeScreen extends StatelessWidget {
             showTimelineHeader: false,
             dayProps: EasyDayProps(
               dayStructure: DayStructure.dayStrDayNum,
-
-              // 1. Selected Day (Purple Background)
               activeDayStyle: DayStyle(
                 decoration: BoxDecoration(
                   color: AppColors.primary,
@@ -395,31 +377,22 @@ class HomeScreen extends StatelessWidget {
                 ),
                 dayStrStyle: const TextStyle(color: Colors.white, fontSize: 12),
               ),
-
-              // 2. Today (When NOT selected) - THIS WAS THE ISSUE
               todayStyle: DayStyle(
                 decoration: BoxDecoration(
                   color: inactiveBg,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppColors.primary.withOpacity(
-                      0.5,
-                    ), // Subtle purple border for Today
+                    color: AppColors.primary.withOpacity(0.5),
                     width: 2,
                   ),
                 ),
                 dayNumStyle: TextStyle(
-                  color: todayText, // Dynamic Color
+                  color: todayText,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),
-                dayStrStyle: TextStyle(
-                  color: todayText, // Dynamic Color
-                  fontSize: 12,
-                ),
+                dayStrStyle: TextStyle(color: todayText, fontSize: 12),
               ),
-
-              // 3. Any other inactive day
               inactiveDayStyle: DayStyle(
                 decoration: BoxDecoration(
                   color: inactiveBg,
@@ -442,7 +415,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Add/Edit Task Sheet
   void _showAddTaskSheet(BuildContext context, {Task? taskToEdit}) {
     final HomeController controller = Get.find<HomeController>();
     final TextEditingController taskController = TextEditingController();
@@ -467,11 +439,12 @@ class HomeScreen extends StatelessWidget {
     bool isReminderOn = isEditing ? taskToEdit!.isReminderEnabled : false;
     int minutesBefore = isEditing ? taskToEdit!.reminderMinutesBefore : 15;
 
-    // Category & Color Logic
     String selectedCategory = isEditing
         ? taskToEdit!.category
-        : categories[0]['name'];
-    int selectedColor = isEditing ? taskToEdit!.color : categories[0]['color'];
+        : controller.categories[0]['name'];
+    int selectedColor = isEditing
+        ? taskToEdit!.color
+        : controller.categories[0]['color'];
 
     TimeOfDay? exactReminderTime;
 
@@ -524,11 +497,10 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
 
-                    // Category Chips
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: categories.map((cat) {
+                        children: controller.categories.map((cat) {
                           bool isSelected = selectedCategory == cat['name'];
                           return Padding(
                             padding: const EdgeInsets.only(right: 8.0),
@@ -689,36 +661,6 @@ class HomeScreen extends StatelessWidget {
                               pickedTime?.hour ?? 0,
                               pickedTime?.minute ?? 0,
                             );
-
-                            if (isReminderOn) {
-                              int uniqueId = DateTime.now()
-                                  .millisecondsSinceEpoch
-                                  .remainder(100000);
-                              DateTime? notifyAt;
-                              if (minutesBefore == 0 &&
-                                  exactReminderTime != null) {
-                                notifyAt = DateTime(
-                                  selectedDate.year,
-                                  selectedDate.month,
-                                  selectedDate.day,
-                                  exactReminderTime!.hour,
-                                  exactReminderTime!.minute,
-                                );
-                              } else if (minutesBefore > 0) {
-                                notifyAt = taskDateTime.subtract(
-                                  Duration(minutes: minutesBefore),
-                                );
-                              }
-                              if (notifyAt != null &&
-                                  notifyAt.isAfter(DateTime.now())) {
-                                NotificationService.scheduleNotification(
-                                  uniqueId,
-                                  taskController.text,
-                                  notifyAt,
-                                  minutesBefore,
-                                );
-                              }
-                            }
 
                             if (isEditing) {
                               controller.updateTask(

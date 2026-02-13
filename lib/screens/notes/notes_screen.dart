@@ -43,7 +43,10 @@ class NotesScreen extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final note = controller.notes[index];
                     return GestureDetector(
-                      onTap: () => _showNoteEditor(context, note: note),
+                      onTap: () => Get.to(
+                        () => NoteEditorScreen(note: note),
+                        transition: Transition.fadeIn,
+                      ),
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -90,20 +93,46 @@ class NotesScreen extends StatelessWidget {
               ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showNoteEditor(context),
+        onPressed: () => Get.to(
+          () => const NoteEditorScreen(),
+          transition: Transition.fadeIn,
+        ),
         child: const Icon(Icons.add),
       ),
     );
   }
+}
 
-  void _showNoteEditor(BuildContext context, {Note? note}) {
-    final NotesController controller = Get.find<NotesController>();
-    final titleCtrl = TextEditingController(text: note?.title ?? "");
-    final contentCtrl = TextEditingController(text: note?.content ?? "");
+class NoteEditorScreen extends StatefulWidget {
+  final Note? note;
+  const NoteEditorScreen({super.key, this.note});
 
-    // COLOR LOGIC:
-    // If Editing (note != null): Background is Pastel -> Text MUST be Black.
-    // If Creating (note == null): Background is Theme Card -> Text follows Theme (White in Dark Mode).
+  @override
+  State<NoteEditorScreen> createState() => _NoteEditorScreenState();
+}
+
+class _NoteEditorScreenState extends State<NoteEditorScreen> {
+  late TextEditingController titleCtrl;
+  late TextEditingController contentCtrl;
+  final NotesController controller = Get.find<NotesController>();
+
+  @override
+  void initState() {
+    super.initState();
+    titleCtrl = TextEditingController(text: widget.note?.title ?? "");
+    contentCtrl = TextEditingController(text: widget.note?.content ?? "");
+  }
+
+  @override
+  void dispose() {
+    titleCtrl.dispose();
+    contentCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final note = widget.note;
     final Color bgColor = note != null
         ? Color(note.color)
         : Theme.of(context).cardColor;
@@ -115,102 +144,92 @@ class NotesScreen extends StatelessWidget {
         : Theme.of(context).iconTheme.color ?? Colors.black;
     final Color hintColor = note != null ? Colors.black26 : Colors.grey;
 
-    Get.to(
-      () => Scaffold(
-        backgroundColor: bgColor,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: iconColor),
-            onPressed: () {
-              // Auto-Save logic
-              if (titleCtrl.text.isNotEmpty || contentCtrl.text.isNotEmpty) {
-                if (note == null) {
-                  controller.addNote(titleCtrl.text, contentCtrl.text);
-                } else {
-                  controller.updateNote(note, titleCtrl.text, contentCtrl.text);
-                }
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: iconColor),
+          onPressed: () {
+            if (titleCtrl.text.isNotEmpty || contentCtrl.text.isNotEmpty) {
+              if (note == null) {
+                controller.addNote(titleCtrl.text, contentCtrl.text);
+              } else {
+                controller.updateNote(note!, titleCtrl.text, contentCtrl.text);
               }
-              Get.back();
-            },
-          ),
-          actions: [
-            if (note != null)
-              IconButton(
-                icon: Icon(Icons.delete_outline, color: iconColor),
-                onPressed: () {
-                  // 1. Capture note for Undo
-                  final deletedNote = note;
+            }
+            Get.back();
+          },
+        ),
+        actions: [
+          if (note != null)
+            IconButton(
+              icon: Icon(Icons.delete_outline, color: iconColor),
+              onPressed: () {
+                final deletedNote = note;
+                controller.deleteNote(note!.id);
+                Get.back();
 
-                  // 2. Delete it
-                  controller.deleteNote(note.id);
-                  Get.back(); // Close editor
-
-                  // 3. Show Undo Snackbar
-                  Get.snackbar(
-                    "Note Deleted",
-                    "The note was removed",
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: Colors.black87,
-                    colorText: Colors.white,
-                    margin: const EdgeInsets.all(10),
-                    duration: const Duration(seconds: 4),
-                    mainButton: TextButton(
-                      onPressed: () {
-                        controller.restoreNote(deletedNote);
-                        if (Get.isSnackbarOpen) Get.back();
-                      },
-                      child: const Text(
-                        "UNDO",
-                        style: TextStyle(
-                          color: Colors.yellow,
-                          fontWeight: FontWeight.bold,
-                        ),
+                Get.snackbar(
+                  "Note Deleted",
+                  "The note was removed",
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: Colors.black87,
+                  colorText: Colors.white,
+                  margin: const EdgeInsets.all(10),
+                  duration: const Duration(seconds: 4),
+                  mainButton: TextButton(
+                    onPressed: () {
+                      controller.restoreNote(deletedNote!);
+                      if (Get.isSnackbarOpen) Get.back();
+                    },
+                    child: const Text(
+                      "UNDO",
+                      style: TextStyle(
+                        color: Colors.yellow,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  );
-                },
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              controller: titleCtrl,
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: textColor,
               ),
-          ],
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              TextField(
-                controller: titleCtrl,
-                // Apply Dynamic Text Color
-                style: GoogleFonts.poppins(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
+              decoration: InputDecoration(
+                hintText: "Title",
+                border: InputBorder.none,
+                hintStyle: TextStyle(color: hintColor),
+              ),
+            ),
+            Expanded(
+              child: TextField(
+                controller: contentCtrl,
+                style: GoogleFonts.poppins(fontSize: 16, color: textColor),
+                maxLines: null,
+                expands: true,
                 decoration: InputDecoration(
-                  hintText: "Title",
+                  hintText: "Note something down...",
                   border: InputBorder.none,
                   hintStyle: TextStyle(color: hintColor),
                 ),
               ),
-              Expanded(
-                child: TextField(
-                  controller: contentCtrl,
-                  // Apply Dynamic Text Color
-                  style: GoogleFonts.poppins(fontSize: 16, color: textColor),
-                  maxLines: null,
-                  expands: true,
-                  decoration: InputDecoration(
-                    hintText: "Note something down...",
-                    border: InputBorder.none,
-                    hintStyle: TextStyle(color: hintColor),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-      transition: Transition.fadeIn,
     );
   }
 }
