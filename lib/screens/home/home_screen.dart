@@ -323,8 +323,13 @@ class HomeScreen extends StatelessWidget {
     BuildContext context,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Define colors for inactive days
     final inactiveBg = Theme.of(context).cardColor;
     final inactiveText = isDark ? Colors.white : Colors.grey;
+    final todayText = isDark
+        ? Colors.white
+        : Colors.black; // Fix for Today's text
 
     return Column(
       children: [
@@ -370,12 +375,45 @@ class HomeScreen extends StatelessWidget {
             showTimelineHeader: false,
             dayProps: EasyDayProps(
               dayStructure: DayStructure.dayStrDayNum,
+
+              // 1. Selected Day (Purple Background)
               activeDayStyle: DayStyle(
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(20),
                 ),
+                dayNumStyle: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+                dayStrStyle: const TextStyle(color: Colors.white, fontSize: 12),
               ),
+
+              // 2. Today (When NOT selected) - THIS WAS THE ISSUE
+              todayStyle: DayStyle(
+                decoration: BoxDecoration(
+                  color: inactiveBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.primary.withOpacity(
+                      0.5,
+                    ), // Subtle purple border for Today
+                    width: 2,
+                  ),
+                ),
+                dayNumStyle: TextStyle(
+                  color: todayText, // Dynamic Color
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+                dayStrStyle: TextStyle(
+                  color: todayText, // Dynamic Color
+                  fontSize: 12,
+                ),
+              ),
+
+              // 3. Any other inactive day
               inactiveDayStyle: DayStyle(
                 decoration: BoxDecoration(
                   color: inactiveBg,
@@ -385,7 +423,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 dayNumStyle: TextStyle(
-                  color: isDark ? Colors.white : Colors.black,
+                  color: inactiveText,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),
