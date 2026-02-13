@@ -33,7 +33,6 @@ class NotesScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // 1. SEARCH BAR
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: TextField(
@@ -51,8 +50,6 @@ class NotesScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          // 2. NOTES GRID
           Expanded(
             child: Obx(() {
               final notesList = controller.filteredNotes;
@@ -70,8 +67,7 @@ class NotesScreen extends StatelessWidget {
                       crossAxisSpacing: 12,
                       itemCount: notesList.length,
                       itemBuilder: (context, index) {
-                        final note = notesList[index];
-                        return _buildNoteCard(context, note);
+                        return _buildNoteCard(context, notesList[index]);
                       },
                     );
             }),
@@ -90,16 +86,14 @@ class NotesScreen extends StatelessWidget {
 
   Widget _buildNoteCard(BuildContext context, Note note) {
     final hasBgImage = note.backgroundImagePath != null;
-    // FIX: If color is 0, use Card Color (Grey/White), else use the pastel color
     final Color cardColor = note.color == 0
         ? Theme.of(context).cardColor
         : Color(note.color);
-    // FIX: Text color logic
     final Color textColor = (hasBgImage || note.color == 0)
         ? (Theme.of(context).brightness == Brightness.dark
               ? Colors.white
               : Colors.black87)
-        : Colors.black87; // Pastel always black text
+        : Colors.black87;
 
     return GestureDetector(
       onTap: () => Get.to(
@@ -138,7 +132,6 @@ class NotesScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
             if (note.title.isNotEmpty)
               Text(
                 note.title,
@@ -148,9 +141,7 @@ class NotesScreen extends StatelessWidget {
                   color: textColor,
                 ),
               ),
-
             const SizedBox(height: 8),
-
             if (note.isTodoList)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,7 +184,6 @@ class NotesScreen extends StatelessWidget {
                   color: textColor.withOpacity(0.8),
                 ),
               ),
-
             const SizedBox(height: 10),
             Text(
               DateFormat('MMM dd').format(note.date),
@@ -209,10 +199,6 @@ class NotesScreen extends StatelessWidget {
   }
 }
 
-// ==========================================
-//           THE EDITOR
-// ==========================================
-
 class NoteEditorScreen extends StatefulWidget {
   final Note? note;
   const NoteEditorScreen({super.key, this.note});
@@ -223,27 +209,26 @@ class NoteEditorScreen extends StatefulWidget {
 
 class _NoteEditorScreenState extends State<NoteEditorScreen> {
   final NotesController controller = Get.find<NotesController>();
-
   late TextEditingController titleCtrl;
   late TextEditingController contentCtrl;
 
   String? _bgImagePath;
-  int _selectedColor = 0; // 0 = Default (Grey/Theme)
+  int _selectedColor = 0;
   List<String> _attachedImages = [];
   bool _isTodoList = false;
   List<Map<String, dynamic>> _todoItems = [];
 
+  // Voice Logic
   late stt.SpeechToText _speech;
   bool _isListening = false;
+  String _textBeforeListening = ""; // Critical for preventing duplication
 
   @override
   void initState() {
     super.initState();
     titleCtrl = TextEditingController(text: widget.note?.title ?? "");
     contentCtrl = TextEditingController(text: widget.note?.content ?? "");
-
     _bgImagePath = widget.note?.backgroundImagePath;
-    // FIX: Default to 0 (Theme Color) instead of forcing Yellow
     _selectedColor = widget.note?.color ?? 0;
     _attachedImages = List.from(widget.note?.contentImages ?? []);
     _isTodoList = widget.note?.isTodoList ?? false;
@@ -265,7 +250,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         contentCtrl.text.isEmpty &&
         _attachedImages.isEmpty &&
         _todoItems.isEmpty;
-
     if (isEmpty) {
       if (widget.note != null) controller.deleteNote(widget.note!.id);
     } else {
@@ -280,48 +264,109 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         isTodoList: _isTodoList,
         todoItems: _todoItems,
       );
-
-      if (widget.note == null) {
+      if (widget.note == null)
         controller.addNote(newNote);
-      } else {
+      else
         controller.updateNote(widget.note!, newNote);
-      }
     }
     Get.back();
   }
 
+  // --- FIXED VOICE LOGIC ---
+  void _listen() async {
+    if (!_isListening) {
+      // 1. Explicit Permission Request
+      var status = await Permission.microphone.request();
+      if (status != PermissionStatus.granted) {
+        Get.snackbar(
+          "Permission Denied",
+          "Microphone permission is required.",
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      // 2. Initialize
+      bool available = await _speech.initialize(
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (error) => setState(() => _isListening = false),
+      );
+
+      if (available) {
+        setState(() {
+          _isListening = true;
+          // 3. Capture baseline text to prevent duplication
+          if (_isTodoList && _todoItems.isNotEmpty) {
+            _textBeforeListening = _todoItems.last['text'];
+          } else {
+            _textBeforeListening = contentCtrl.text;
+          }
+        });
+
+        _speech.listen(
+          onResult: (val) {
+            setState(() {
+              // 4. Combine Baseline + New Speech (val.recognizedWords grows as you speak)
+              String newText = "$_textBeforeListening ${val.recognizedWords}"
+                  .trim();
+
+              if (_isTodoList && _todoItems.isNotEmpty) {
+                _todoItems.last['text'] = newText;
+              } else {
+                contentCtrl.text = newText;
+                // Move cursor to end
+                contentCtrl.selection = TextSelection.fromPosition(
+                  TextPosition(offset: contentCtrl.text.length),
+                );
+              }
+            });
+          },
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 5),
+          localeId: "en_US",
+          cancelOnError: true,
+          partialResults: true,
+        );
+      }
+    } else {
+      setState(() => _isListening = false);
+      _speech.stop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // FIX: Color Resolution Logic
     Color bgColor;
     if (_bgImagePath != null) {
       bgColor = Colors.transparent;
     } else if (_selectedColor == 0) {
-      bgColor = Theme.of(context).cardColor; // The "Grey" you liked
+      bgColor = Theme.of(context).cardColor;
     } else {
       bgColor = Color(_selectedColor);
     }
 
-    // FIX: Text Color Resolution Logic
     Color textColor;
     if (_bgImagePath != null) {
       textColor = Colors.white;
     } else if (_selectedColor == 0) {
-      // If default/grey, adapt to theme (White in Dark, Black in Light)
       textColor = Theme.of(context).brightness == Brightness.dark
           ? Colors.white
           : Colors.black87;
     } else {
-      textColor = Colors.black87; // Pastel always gets black
+      textColor = Colors.black87;
     }
-
     final Color iconColor = textColor.withOpacity(0.7);
 
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) {
-        if (didPop) return;
-        _saveAndClose();
+        if (!didPop) _saveAndClose();
       },
       child: Scaffold(
         extendBodyBehindAppBar: true,
@@ -369,47 +414,43 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           itemCount: _attachedImages.length,
-                          itemBuilder: (context, index) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8.0),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Stack(
-                                  children: [
-                                    Image.file(
-                                      File(_attachedImages[index]),
-                                      width: 100,
-                                      height: 100,
-                                      fit: BoxFit.cover,
-                                    ),
-                                    Positioned(
-                                      right: 0,
-                                      top: 0,
-                                      child: GestureDetector(
-                                        onTap: () => setState(
-                                          () => _attachedImages.removeAt(index),
-                                        ),
-                                        child: const CircleAvatar(
-                                          backgroundColor: Colors.red,
-                                          radius: 10,
-                                          child: Icon(
-                                            Icons.close,
-                                            size: 12,
-                                            color: Colors.white,
-                                          ),
+                          itemBuilder: (context, index) => Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Stack(
+                                children: [
+                                  Image.file(
+                                    File(_attachedImages[index]),
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    child: GestureDetector(
+                                      onTap: () => setState(
+                                        () => _attachedImages.removeAt(index),
+                                      ),
+                                      child: const CircleAvatar(
+                                        backgroundColor: Colors.red,
+                                        radius: 10,
+                                        child: Icon(
+                                          Icons.close,
+                                          size: 12,
+                                          color: Colors.white,
                                         ),
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            );
-                          },
+                            ),
+                          ),
                         ),
                       ),
-
                     const SizedBox(height: 10),
-
                     TextField(
                       controller: titleCtrl,
                       style: GoogleFonts.poppins(
@@ -423,7 +464,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                         hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
                       ),
                     ),
-
                     if (_isTodoList)
                       _buildChecklist(textColor)
                     else
@@ -445,7 +485,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   ],
                 ),
               ),
-
               _buildBottomBar(iconColor),
             ],
           ),
@@ -453,8 +492,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       ),
     );
   }
-
-  // --- WIDGETS ---
 
   Widget _buildChecklist(Color textColor) {
     return Column(
@@ -473,9 +510,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     ? Colors.black
                     : Colors.white,
                 side: BorderSide(color: textColor),
-                onChanged: (val) {
-                  setState(() => item['done'] = val);
-                },
+                onChanged: (val) => setState(() => item['done'] = val),
               ),
               Expanded(
                 child: TextFormField(
@@ -500,7 +535,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               ),
             ],
           );
-        }).toList(),
+        }),
         TextButton.icon(
           onPressed: () =>
               setState(() => _todoItems.add({'text': '', 'done': false})),
@@ -520,12 +555,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         children: [
           IconButton(
             icon: Icon(Icons.palette_outlined, color: iconColor),
-            tooltip: "Background",
             onPressed: _showBackgroundPicker,
           ),
           IconButton(
             icon: Icon(Icons.image_outlined, color: iconColor),
-            tooltip: "Add Image",
             onPressed: _pickImage,
           ),
           IconButton(
@@ -533,34 +566,27 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               _isTodoList ? Icons.format_align_left : Icons.check_box_outlined,
               color: iconColor,
             ),
-            tooltip: "Toggle Checklist",
             onPressed: () {
               setState(() {
                 _isTodoList = !_isTodoList;
-                if (_isTodoList && contentCtrl.text.isNotEmpty) {
+                if (_isTodoList && contentCtrl.text.isNotEmpty)
                   _todoItems = contentCtrl.text
                       .split('\n')
                       .map((e) => {'text': e, 'done': false})
                       .toList();
-                } else if (!_isTodoList && _todoItems.isNotEmpty) {
+                else if (!_isTodoList && _todoItems.isNotEmpty)
                   contentCtrl.text = _todoItems
                       .map((e) => e['text'])
                       .join('\n');
-                }
               });
             },
           ),
           IconButton(
-            icon: Icon(
-              Icons.mic_none,
-              color: _isListening ? Colors.red : iconColor,
-            ),
-            tooltip: "Voice to Text",
+            icon: Icon(Icons.mic, color: _isListening ? Colors.red : iconColor),
             onPressed: _listen,
-          ),
+          ), // Fixed icon
           IconButton(
             icon: Icon(Icons.share_outlined, color: iconColor),
-            tooltip: "Share",
             onPressed: () {
               final text =
                   "${titleCtrl.text}\n\n${_isTodoList ? _todoItems.map((e) => "- ${e['text']}").join('\n') : contentCtrl.text}";
@@ -571,8 +597,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       ),
     );
   }
-
-  // --- ACTIONS ---
 
   void _showBackgroundPicker() {
     showModalBottomSheet(
@@ -595,7 +619,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Row(
                 children: [
-                  // 1. DEFAULT (Reset to Grey/Theme)
                   GestureDetector(
                     onTap: () => setState(() {
                       _bgImagePath = null;
@@ -616,7 +639,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                       ),
                     ),
                   ),
-                  // 2. Image Picker
                   GestureDetector(
                     onTap: () async {
                       Navigator.pop(ctx);
@@ -634,7 +656,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                       ),
                     ),
                   ),
-                  // 3. Colors
                   ...controller.pastelColors.map(
                     (color) => GestureDetector(
                       onTap: () => setState(() {
@@ -664,31 +685,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     final XFile? image = await ImagePicker().pickImage(
       source: ImageSource.gallery,
     );
-    if (image != null) {
-      setState(() => _attachedImages.add(image.path));
-    }
-  }
-
-  void _listen() async {
-    if (!_isListening) {
-      bool available = await _speech.initialize();
-      if (available) {
-        setState(() => _isListening = true);
-        _speech.listen(
-          onResult: (val) {
-            setState(() {
-              if (_isTodoList && _todoItems.isNotEmpty) {
-                _todoItems.last['text'] = val.recognizedWords;
-              } else {
-                contentCtrl.text += " ${val.recognizedWords}";
-              }
-            });
-          },
-        );
-      }
-    } else {
-      setState(() => _isListening = false);
-      _speech.stop();
-    }
+    if (image != null) setState(() => _attachedImages.add(image.path));
   }
 }
