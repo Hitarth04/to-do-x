@@ -5,18 +5,19 @@ import '../../../data/models/note_model.dart';
 
 class NotesController extends GetxController {
   var notes = <Note>[].obs;
+  var searchQuery = ''.obs; // Search State
   final storage = GetStorage();
 
   final List<int> pastelColors = [
-    0xFFFFF8B8, // Yellow
-    0xFFF28B82, // Red/Pink
-    0xFFCCFF90, // Green
-    0xFFA7FFEB, // Teal
-    0xFFCBF0F8, // Cyan
-    0xFFAFCBFA, // Blue
-    0xFFD7AEFB, // Purple
-    0xFFFDCFE8, // Pink
-    0xFFE6C9A8, // Brown
+    0xFFFFF8B8,
+    0xFFF28B82,
+    0xFFCCFF90,
+    0xFFA7FFEB,
+    0xFFCBF0F8,
+    0xFFAFCBFA,
+    0xFFD7AEFB,
+    0xFFFDCFE8,
+    0xFFE6C9A8,
   ];
 
   @override
@@ -31,30 +32,29 @@ class NotesController extends GetxController {
     });
   }
 
-  void addNote(String title, String content) {
-    int randomColor = pastelColors[Random().nextInt(pastelColors.length)];
-
-    notes.add(
-      Note(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: title,
-        content: content,
-        date: DateTime.now(),
-        color: randomColor,
-      ),
-    );
+  // SEARCH LOGIC
+  List<Note> get filteredNotes {
+    if (searchQuery.value.isEmpty) return notes;
+    return notes.where((note) {
+      return note.title.toLowerCase().contains(
+            searchQuery.value.toLowerCase(),
+          ) ||
+          note.content.toLowerCase().contains(searchQuery.value.toLowerCase());
+    }).toList();
   }
 
-  void updateNote(Note note, String title, String content) {
-    var index = notes.indexWhere((n) => n.id == note.id);
+  void addNote(Note note) {
+    // If no color assigned, pick random
+    if (note.color == 0) {
+      note.color = pastelColors[Random().nextInt(pastelColors.length)];
+    }
+    notes.add(note);
+  }
+
+  void updateNote(Note oldNote, Note newNote) {
+    var index = notes.indexWhere((n) => n.id == oldNote.id);
     if (index != -1) {
-      notes[index] = Note(
-        id: note.id,
-        title: title,
-        content: content,
-        date: DateTime.now(),
-        color: note.color,
-      );
+      notes[index] = newNote;
       notes.refresh();
     }
   }
@@ -63,7 +63,6 @@ class NotesController extends GetxController {
     notes.removeWhere((n) => n.id == id);
   }
 
-  // NEW: Restore function for Undo
   void restoreNote(Note note) {
     notes.add(note);
     notes.refresh();
