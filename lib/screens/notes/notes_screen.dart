@@ -144,90 +144,105 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         : Theme.of(context).iconTheme.color ?? Colors.black;
     final Color hintColor = note != null ? Colors.black26 : Colors.grey;
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: iconColor),
-          onPressed: () {
-            if (titleCtrl.text.isNotEmpty || contentCtrl.text.isNotEmpty) {
-              if (note == null) {
-                controller.addNote(titleCtrl.text, contentCtrl.text);
-              } else {
-                controller.updateNote(note, titleCtrl.text, contentCtrl.text);
-              }
-            }
-            Get.back();
-          },
-        ),
-        actions: [
-          if (note != null)
-            IconButton(
-              icon: Icon(Icons.delete_outline, color: iconColor),
-              onPressed: () {
-                final deletedNote = note;
-                controller.deleteNote(note!.id);
-                Get.back();
+    // Helper function to handle the save/delete logic
+    void handleBack() {
+      if (titleCtrl.text.isEmpty && contentCtrl.text.isEmpty) {
+        if (note != null) controller.deleteNote(note!.id);
+      } else {
+        if (note == null) {
+          controller.addNote(titleCtrl.text, contentCtrl.text);
+        } else {
+          controller.updateNote(note!, titleCtrl.text, contentCtrl.text);
+        }
+      }
+    }
 
-                Get.snackbar(
-                  "Note Deleted",
-                  "The note was removed",
-                  snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: Colors.black87,
-                  colorText: Colors.white,
-                  margin: const EdgeInsets.all(10),
-                  duration: const Duration(seconds: 4),
-                  mainButton: TextButton(
-                    onPressed: () {
-                      controller.restoreNote(deletedNote!);
-                      if (Get.isSnackbarOpen) Get.back();
-                    },
-                    child: const Text(
-                      "UNDO",
-                      style: TextStyle(
-                        color: Colors.yellow,
-                        fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: false, // We will handle the pop manually
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        handleBack();
+        Get.back(); // Actually close the screen
+      },
+      child: Scaffold(
+        backgroundColor: bgColor,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: iconColor),
+            onPressed: () {
+              handleBack();
+              Get.back();
+            },
+          ),
+          actions: [
+            if (note != null)
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: iconColor),
+                onPressed: () {
+                  final deletedNote = note;
+                  controller.deleteNote(note!.id);
+                  Get.back();
+
+                  Get.snackbar(
+                    "Note Deleted",
+                    "The note was removed",
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: Colors.black87,
+                    colorText: Colors.white,
+                    margin: const EdgeInsets.all(10),
+                    duration: const Duration(seconds: 4),
+                    mainButton: TextButton(
+                      onPressed: () {
+                        controller.restoreNote(deletedNote!);
+                        if (Get.isSnackbarOpen) Get.back();
+                      },
+                      child: const Text(
+                        "UNDO",
+                        style: TextStyle(
+                          color: Colors.yellow,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            TextField(
-              controller: titleCtrl,
-              style: GoogleFonts.poppins(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: textColor,
+                  );
+                },
               ),
-              decoration: InputDecoration(
-                hintText: "Title",
-                border: InputBorder.none,
-                hintStyle: TextStyle(color: hintColor),
-              ),
-            ),
-            Expanded(
-              child: TextField(
-                controller: contentCtrl,
-                style: GoogleFonts.poppins(fontSize: 16, color: textColor),
-                maxLines: null,
-                expands: true,
+          ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              TextField(
+                controller: titleCtrl,
+                style: GoogleFonts.poppins(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
                 decoration: InputDecoration(
-                  hintText: "Note something down...",
+                  hintText: "Title",
                   border: InputBorder.none,
                   hintStyle: TextStyle(color: hintColor),
                 ),
               ),
-            ),
-          ],
+              Expanded(
+                child: TextField(
+                  controller: contentCtrl,
+                  style: GoogleFonts.poppins(fontSize: 16, color: textColor),
+                  maxLines: null,
+                  expands: true,
+                  decoration: InputDecoration(
+                    hintText: "Note something down...",
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: hintColor),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
