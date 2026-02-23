@@ -2,66 +2,65 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 
 class PeriodLog {
-  DateTime date;
+  DateTime startDate;
+  DateTime? endDate; // Null means the period is currently active
   bool isIgnored;
 
-  PeriodLog({required this.date, this.isIgnored = false});
+  PeriodLog({required this.startDate, this.endDate, this.isIgnored = false});
 
   factory PeriodLog.fromJson(Map<String, dynamic> json) {
     return PeriodLog(
-      date: DateTime.parse(json['date']),
+      startDate: DateTime.parse(json['startDate']),
+      endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
       isIgnored: json['isIgnored'] ?? false,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'date': date.toIso8601String(), 'isIgnored': isIgnored};
+    return {
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate?.toIso8601String(),
+      'isIgnored': isIgnored,
+    };
   }
 }
 
 class HealthController extends GetxController {
   final storage = GetStorage();
 
-  /// Latest log always at index 0
+  // STATE
   final logs = <PeriodLog>[].obs;
-
   final averageCycleLength = 28.obs;
-
+  final averageBleedLength = 5.obs; // Dynamically learns how long they bleed
   final predictedNextPeriod = DateTime.now().obs;
 
-  final periodDuration = 5.obs;
-
-  // ================= INIT =================
+  bool get isPeriodActive => logs.isNotEmpty && logs.first.endDate == null;
 
   @override
   void onInit() {
     super.onInit();
-
     _loadLogs();
+    _calculateStats();
 
-    /// Auto save + auto recalc
+    // Auto-save and Auto-sync UI whenever logs change
     ever<List<PeriodLog>>(logs, (_) {
       _saveLogs();
       _calculateStats();
+      update([
+        'calendar',
+      ]); // Forces the Home Screen horizontal calendar to redraw
     });
-
-    _calculateStats();
   }
-
-  // ================= STORAGE =================
 
   void _loadLogs() {
     final stored = storage.read('period_logs');
-
     if (stored != null && stored is List) {
       logs.assignAll(
         stored
             .map((e) => PeriodLog.fromJson(Map<String, dynamic>.from(e)))
             .toList(),
       );
-
-      /// Keep newest first
-      logs.sort((a, b) => b.date.compareTo(a.date));
+      logs.sort((a, b) => b.startDate.compareTo(a.startDate)); // Newest first
     }
   }
 
@@ -69,120 +68,137 @@ class HealthController extends GetxController {
     storage.write('period_logs', logs.map((e) => e.toJson()).toList());
   }
 
-  // ================= ACTIONS =================
+  // ================= ACTIONS (START / STOP) =================
 
-  bool checkIsOutlier(DateTime newDate) {
-    if (logs.isEmpty) return false;
+  void startPeriod(DateTime date) {
+    if (isPeriodActive) return; // Prevent double start
 
-    final lastDate = logs.first.date;
-
-    final diff = newDate.difference(lastDate).inDays.abs();
-
-    /// medically reasonable cycle warning
-    return diff < 21 || diff > 35;
-  }
-
-  void logPeriod(DateTime date, {bool ignoreForPrediction = false}) {
-    /// avoid duplicates
-    if (logs.any((log) => _isSameDay(log.date, date))) {
-      return;
+    // Outlier check (If gap is weird, flag it to ignore in math)
+    bool ignore = false;
+    if (logs.isNotEmpty) {
+      final gap = date.difference(logs.first.startDate).inDays;
+      if (gap < 21 || gap > 35) ignore = true;
     }
 
-    logs.add(PeriodLog(date: date, isIgnored: ignoreForPrediction));
-
-    /// newest first
-    logs.sort((a, b) => b.date.compareTo(a.date));
+    logs.insert(0, PeriodLog(startDate: date, isIgnored: ignore));
   }
 
-  void deleteLog(DateTime date) {
-    logs.removeWhere((log) => _isSameDay(log.date, date));
+  void endPeriod(DateTime date) {
+    if (!isPeriodActive) return;
+
+    // Prevent ending before starting
+    if (date.isBefore(logs.first.startDate)) {
+      date = logs.first.startDate;
+    }
+
+    logs.first.endDate = date;
+    logs.refresh(); // Triggers the 'ever' listener
   }
 
-  // ================= CALCULATIONS =================
+  void deleteLatestLog() {
+    if (logs.isNotEmpty) {
+      logs.removeAt(0);
+      update(['calendar']);
+    }
+  }
+
+  // ================= THE MATH ENGINE =================
 
   void _calculateStats() {
     if (logs.isEmpty) {
       predictedNextPeriod.value = DateTime.now();
-      averageCycleLength.value = 28;
       return;
     }
 
-    /// only 1 log → default prediction
-    if (logs.length < 2) {
-      predictedNextPeriod.value = logs.first.date.add(
-        Duration(days: averageCycleLength.value),
-      );
-      return;
-    }
-
-    List<int> cycleLengths = [];
-
-    for (int i = 0; i < logs.length - 1; i++) {
-      if (logs[i].isIgnored) continue;
-
-      final gap = logs[i].date.difference(logs[i + 1].date).inDays;
-
-      /// ignore unrealistic data
-      if (gap >= 15 && gap <= 60) {
-        cycleLengths.add(gap);
+    // 1. AUTO-CAP SECURITY
+    // If a user forgets to stop their period for 8 days, auto-close it to their average
+    if (isPeriodActive) {
+      final daysActive = DateTime.now().difference(logs.first.startDate).inDays;
+      if (daysActive > 7) {
+        logs.first.endDate = logs.first.startDate.add(
+          Duration(days: averageBleedLength.value - 1),
+        );
       }
     }
 
-    if (cycleLengths.isEmpty) {
-      averageCycleLength.value = 28;
+    // 2. BLEEDING LENGTH AVERAGE
+    List<int> bleedLengths = [];
+    for (var log in logs) {
+      if (log.endDate != null) {
+        // +1 to make it inclusive (e.g., 1st to 5th = 5 days)
+        bleedLengths.add(log.endDate!.difference(log.startDate).inDays + 1);
+      }
+    }
+    if (bleedLengths.isNotEmpty) {
+      averageBleedLength.value =
+          (bleedLengths.reduce((a, b) => a + b) / bleedLengths.length).round();
     } else {
-      double weightedSum = 0;
-      double totalWeight = 0;
-
-      /// recent cycles weighted higher
-      for (int i = 0; i < cycleLengths.length; i++) {
-        double weight;
-
-        if (i == 0) {
-          weight = 0.5;
-        } else if (i == 1) {
-          weight = 0.3;
-        } else {
-          weight = 0.2;
-        }
-
-        weightedSum += cycleLengths[i] * weight;
-
-        totalWeight += weight;
-      }
-
-      averageCycleLength.value = (weightedSum / totalWeight).round();
+      averageBleedLength.value = 5; // Default
     }
 
-    predictedNextPeriod.value = logs.first.date.add(
+    // 3. CYCLE LENGTH AVERAGE (Weighted)
+    if (logs.length >= 2) {
+      List<int> cycleLengths = [];
+      for (int i = 0; i < logs.length - 1; i++) {
+        if (logs[i].isIgnored) continue;
+        final gap = logs[i].startDate.difference(logs[i + 1].startDate).inDays;
+        if (gap >= 15 && gap <= 60) cycleLengths.add(gap);
+      }
+
+      if (cycleLengths.isNotEmpty) {
+        double weightedSum = 0;
+        double totalWeight = 0;
+        for (int i = 0; i < cycleLengths.length; i++) {
+          double weight = (i == 0) ? 0.5 : (i == 1 ? 0.3 : 0.2);
+          weightedSum += cycleLengths[i] * weight;
+          totalWeight += weight;
+        }
+        averageCycleLength.value = (weightedSum / totalWeight).round();
+      }
+    }
+
+    // 4. PREDICT NEXT PERIOD
+    predictedNextPeriod.value = logs.first.startDate.add(
       Duration(days: averageCycleLength.value),
     );
   }
 
-  // ================= HELPERS =================
+  // ================= CALENDAR HELPERS =================
 
-  /// confirmed logged period
   bool isPeriodDay(DateTime date) {
-    for (final log in logs) {
-      final diff = date.difference(log.date).inDays;
+    DateTime target = _normalize(date);
+    for (var log in logs) {
+      DateTime start = _normalize(log.startDate);
+      // If active, pretend the end date is "today" for drawing purposes
+      DateTime end = log.endDate != null
+          ? _normalize(log.endDate!)
+          : _normalize(DateTime.now());
 
-      if (diff >= 0 && diff < periodDuration.value) {
+      if ((target.isAfter(start) || target.isAtSameMomentAs(start)) &&
+          (target.isBefore(end) || target.isAtSameMomentAs(end))) {
         return true;
       }
     }
     return false;
   }
 
-  /// predicted next period only
   bool isPredictedPeriodDay(DateTime date) {
-    if (logs.isEmpty) return false;
+    if (logs.isEmpty || isPeriodDay(date)) return false;
 
-    final diff = date.difference(predictedNextPeriod.value).inDays;
+    DateTime target = _normalize(date);
+    DateTime predictStart = _normalize(predictedNextPeriod.value);
+    DateTime predictEnd = predictStart.add(
+      Duration(days: averageBleedLength.value - 1),
+    );
 
-    return diff >= 0 && diff < periodDuration.value;
+    if ((target.isAfter(predictStart) ||
+            target.isAtSameMomentAs(predictStart)) &&
+        (target.isBefore(predictEnd) || target.isAtSameMomentAs(predictEnd))) {
+      return true;
+    }
+    return false;
   }
 
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
+  DateTime _normalize(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
 }
