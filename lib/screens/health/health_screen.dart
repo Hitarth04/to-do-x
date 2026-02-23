@@ -223,7 +223,17 @@ class HealthScreen extends StatelessWidget {
 
   // ================= CALENDAR GRID =================
   Widget _buildCalendarGrid(BuildContext context) {
+    // ---------------------------------------------------------
+    // THE FIX: Explicitly read these observables right here.
+    // This forces GetX to redraw the grid instantly when you
+    // log a period, end a period, or when predictions shift!
+    // ---------------------------------------------------------
     final month = selectedMonth.value;
+    // ignore: unused_local_variable
+    final logsLength = controller.logs.length;
+    // ignore: unused_local_variable
+    final predictedUpdate = controller.predictedNextPeriod.value;
+
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final firstWeekday = DateTime(month.year, month.month, 1).weekday;
 
