@@ -11,6 +11,8 @@ import 'controllers/home_controller.dart';
 import '../../../core/app_colors.dart';
 import '../../data/models/task_model.dart';
 import '../notes/notes_screen.dart';
+import '../health/controllers/health_controller.dart';
+import '../health/health_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -50,6 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final HomeController controller = Get.find<HomeController>();
+    // Ensure HealthController is loaded
+    final HealthController healthController = Get.put(HealthController());
 
     return Scaffold(
       appBar: AppBar(
@@ -59,6 +63,10 @@ class _HomeScreenState extends State<HomeScreen> {
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.water_drop, color: Colors.redAccent),
+            onPressed: () => Get.to(() => const HealthScreen()),
+          ),
           Obx(
             () => IconButton(
               icon: Icon(
@@ -91,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Column(
             children: [
-              _buildHorizontalCalendar(controller, context),
+              _buildHorizontalCalendar(controller, healthController, context),
               const SizedBox(height: 20),
 
               Padding(
@@ -314,13 +322,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHorizontalCalendar(
     HomeController controller,
+    HealthController healthController,
     BuildContext context,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inactiveBg = Theme.of(context).cardColor;
-    final inactiveText = isDark ? Colors.white : Colors.grey;
-    final todayText = isDark ? Colors.white : Colors.black;
-
     return Column(
       children: [
         Padding(
@@ -355,61 +359,101 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        Obx(
-          () => EasyInfiniteDateTimeLine(
-            controller: _calendarController,
-            firstDate: DateTime.now().subtract(const Duration(days: 365)),
-            focusDate: controller.selectedDate.value,
-            lastDate: DateTime.now().add(const Duration(days: 365)),
-            onDateChange: (date) => controller.selectedDate.value = date,
-            showTimelineHeader: false,
-            dayProps: EasyDayProps(
-              dayStructure: DayStructure.dayStrDayNum,
-              activeDayStyle: DayStyle(
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
+
+        // SizedBox prevents the Red Screen layout error
+        SizedBox(
+          height: 100,
+          child: Obx(() {
+            // Create a local variable from logs that we'll use in the UI
+            final periodLogs = healthController.logs;
+
+            return EasyInfiniteDateTimeLine(
+              controller: _calendarController,
+              firstDate: DateTime.now().subtract(const Duration(days: 365)),
+              focusDate: controller.selectedDate.value,
+              lastDate: DateTime.now().add(const Duration(days: 365)),
+              onDateChange: (date) => controller.selectedDate.value = date,
+              showTimelineHeader: false,
+              dayProps: const EasyDayProps(width: 64.0, height: 84.0),
+              itemBuilder: (context, date, isSelected, onTap) {
+                // Determine if this date is a period day using the logs
+                bool isPeriod = false;
+                for (var log in periodLogs) {
+                  final diff = date.difference(log.date).inDays;
+                  if (diff >= 0 &&
+                      diff < healthController.periodDuration.value) {
+                    isPeriod = true;
+                    break;
+                  }
+                }
+
+                // Theme Logic
+                bool isDark = Theme.of(context).brightness == Brightness.dark;
+                Color inactiveBg = Theme.of(context).cardColor;
+                Color inactiveText = isDark ? Colors.white : Colors.grey;
+
+                Color bgColor = isSelected ? AppColors.primary : inactiveBg;
+                Color textColor = isSelected ? Colors.white : inactiveText;
+                Border? border = isSelected
+                    ? null
+                    : Border.all(
+                        color: isDark
+                            ? Colors.grey[800]!
+                            : Colors.grey.shade100,
+                      );
+
+                // Override styles if it's a period day
+                if (isPeriod) {
+                  bgColor = Colors.redAccent;
+                  textColor = Colors.white;
+                  border = null;
+                }
+
+                return InkWell(
+                  onTap: onTap,
                   borderRadius: BorderRadius.circular(20),
-                ),
-                dayNumStyle: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-                dayStrStyle: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
-              todayStyle: DayStyle(
-                decoration: BoxDecoration(
-                  color: inactiveBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: AppColors.primary.withOpacity(0.5),
-                    width: 2,
+                  child: Container(
+                    width: 64.0,
+                    height: 84.0,
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: border,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          DateFormat('E').format(date),
+                          style: TextStyle(color: textColor, fontSize: 12),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          date.day.toString(),
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        // Use the observable in the UI
+                        if (isPeriod)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            width: 4,
+                            height: 4,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                dayNumStyle: TextStyle(
-                  color: todayText,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-                dayStrStyle: TextStyle(color: todayText, fontSize: 12),
-              ),
-              inactiveDayStyle: DayStyle(
-                decoration: BoxDecoration(
-                  color: inactiveBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isDark ? Colors.grey[800]! : Colors.grey.shade100,
-                  ),
-                ),
-                dayNumStyle: TextStyle(
-                  color: inactiveText,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-                dayStrStyle: TextStyle(color: inactiveText, fontSize: 12),
-              ),
-            ),
-          ),
+                );
+              },
+            );
+          }),
         ),
       ],
     );
