@@ -1,300 +1,209 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import 'controllers/health_controller.dart';
 
-class HealthScreen extends StatefulWidget {
-  const HealthScreen({super.key});
+class HealthScreen extends StatelessWidget {
+  HealthScreen({super.key});
 
-  @override
-  State<HealthScreen> createState() => _HealthScreenState();
-}
-
-class _HealthScreenState extends State<HealthScreen> {
   final HealthController controller = Get.put(HealthController());
-  DateTime _focusedMonth = DateTime.now();
+
+  final Rx<DateTime> selectedMonth = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+  ).obs;
+
+  // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : const Color(0xFFF9F9F9),
-      appBar: AppBar(
-        title: Text(
-          "Cycle Tracking",
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            color: textColor,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Get.back(),
-        ),
+      appBar: AppBar(title: const Text("Period Tracker")),
+      body: Column(
+        children: [
+          /// HEADER
+          _buildHeader(),
+
+          /// CALENDAR
+          Expanded(child: Obx(() => _buildCalendarGrid())),
+
+          _buildLegend(),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // 1. CYCLE STATUS CARD
-            _buildStatusCard(context),
-            const SizedBox(height: 30),
 
-            // 2. CALENDAR HEADER
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () => setState(
-                    () => _focusedMonth = DateTime(
-                      _focusedMonth.year,
-                      _focusedMonth.month - 1,
-                    ),
-                  ),
-                ),
-                Text(
-                  DateFormat('MMMM yyyy').format(_focusedMonth),
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: () => setState(
-                    () => _focusedMonth = DateTime(
-                      _focusedMonth.year,
-                      _focusedMonth.month + 1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // 3. CALENDAR GRID
-            _buildCalendarGrid(),
-
-            const SizedBox(height: 30),
-
-            // 4. LOG BUTTON
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                ),
-                onPressed: () => _handleDateSelection(DateTime.now()),
-                child: Text(
-                  "Log Period Started Today",
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _addPeriodToday(),
+        child: const Icon(Icons.add),
       ),
     );
   }
 
-  Widget _buildStatusCard(BuildContext context) {
-    return Obx(() {
-      int daysUntil = controller.predictedNextPeriod.value
-          .difference(DateTime.now())
-          .inDays;
-      String statusText = daysUntil > 0
-          ? "$daysUntil Days until next period"
-          : "Period might be late";
-      if (controller.isPeriodDay(DateTime.now())) statusText = "Period Day";
+  // ================= HEADER =================
 
-      return Container(
-        padding: const EdgeInsets.all(25),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.redAccent.shade100, Colors.redAccent],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(25),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.redAccent.withOpacity(0.3),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
+  Widget _buildHeader() {
+    return Obx(() {
+      final predicted = controller.predictedNextPeriod.value;
+
+      final avg = controller.averageCycleLength.value;
+
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Cycle Status",
-                    style: GoogleFonts.poppins(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    statusText,
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    "Avg Cycle: ${controller.averageCycleLength.value} Days",
-                    style: GoogleFonts.poppins(
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+            Text(
+              "Average Cycle : $avg days",
+              style: const TextStyle(fontSize: 16),
             ),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: const BoxDecoration(
-                color: Colors.white24,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.favorite, color: Colors.white, size: 30),
+
+            const SizedBox(height: 6),
+
+            Text(
+              "Next Period : "
+              "${predicted.day}/${predicted.month}/${predicted.year}",
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
       );
     });
   }
+
+  // ================= CALENDAR =================
 
   Widget _buildCalendarGrid() {
-    int daysInMonth = DateTime(
-      _focusedMonth.year,
-      _focusedMonth.month + 1,
-      0,
-    ).day;
+    final month = selectedMonth.value;
 
-    int firstWeekday = DateTime(
-      _focusedMonth.year,
-      _focusedMonth.month,
-      1,
-    ).weekday; // 1=Mon, 7=Sun
+    final firstDay = DateTime(month.year, month.month, 1);
 
-    return Obx(() {
-      /// ✅ Explicit reactive dependency (IMPORTANT)
-      controller.logs.length;
-      controller.predictedNextPeriod.value;
-      controller.periodDuration.value;
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
 
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 7,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-        ),
-        itemCount: daysInMonth + (firstWeekday - 1),
-        itemBuilder: (context, index) {
-          if (index < firstWeekday - 1) {
-            return const SizedBox.shrink();
-          }
+    final startWeekday = firstDay.weekday % 7;
 
-          final day = index - (firstWeekday - 1) + 1;
+    final totalCells = startWeekday + daysInMonth;
 
-          final date = DateTime(_focusedMonth.year, _focusedMonth.month, day);
+    return GridView.builder(
+      padding: const EdgeInsets.all(10),
 
-          final now = DateTime.now();
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+      ),
 
-          bool isPeriod = controller.isPeriodDay(date);
-          bool isPredicted = controller.isPredictedPeriodDay(date);
+      itemCount: totalCells,
 
-          bool isToday =
-              date.day == now.day &&
-              date.month == now.month &&
-              date.year == now.year;
+      itemBuilder: (context, index) {
+        if (index < startWeekday) {
+          return const SizedBox();
+        }
 
-          return GestureDetector(
-            onTap: () => _handleDateSelection(date),
-            child: Container(
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isPeriod
-                    ? Colors.redAccent
-                    : (isPredicted
-                          ? Colors.red.withOpacity(0.1)
-                          : Colors.transparent),
-                border: isToday
-                    ? Border.all(color: Colors.redAccent, width: 2)
-                    : (isPredicted
-                          ? Border.all(color: Colors.redAccent, width: 1)
-                          : null),
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                "$day",
-                style: TextStyle(
-                  color: isPeriod
-                      ? Colors.white
-                      : Theme.of(context).textTheme.bodyMedium?.color,
-                  fontWeight: (isPeriod || isToday)
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                ),
-              ),
+        final day = index - startWeekday + 1;
+
+        final date = DateTime(month.year, month.month, day);
+
+        final today = DateTime.now();
+
+        final isToday =
+            today.year == date.year &&
+            today.month == date.month &&
+            today.day == date.day;
+
+        final isLogged = controller.isPeriodDay(date);
+
+        final isPredicted = controller.isPredictedPeriodDay(date);
+
+        Color bgColor = Colors.transparent;
+
+        if (isLogged) {
+          bgColor = Colors.red.shade300;
+        } else if (isPredicted) {
+          bgColor = Colors.pink.shade100;
+        }
+
+        return GestureDetector(
+          onLongPress: () => _showDeleteDialog(date),
+
+          child: Container(
+            margin: const EdgeInsets.all(4),
+
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(8),
+
+              border: isToday ? Border.all(color: Colors.blue, width: 2) : null,
             ),
-          );
-        },
-      );
-    });
+
+            child: Center(
+              child: Text("$day", style: const TextStyle(fontSize: 16)),
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  void _handleDateSelection(DateTime date) {
-    // 1. Check Outlier
-    if (controller.checkIsOutlier(date)) {
-      Get.defaultDialog(
-        title: "Irregular Cycle?",
-        titleStyle: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        middleText:
-            "This cycle gap is unusual. Do you want to include it in your future predictions?",
-        textConfirm: "Yes, Update",
-        textCancel: "No, Ignore",
-        confirmTextColor: Colors.white,
-        buttonColor: Colors.redAccent,
-        onConfirm: () {
-          controller.logPeriod(date, ignoreForPrediction: false);
-          Get.back();
-        },
-        onCancel: () {
-          controller.logPeriod(date, ignoreForPrediction: true);
-        },
-      );
-    } else {
-      // Toggle logic: If already exists, delete it. Else add it.
-      if (controller.isPeriodDay(date)) {
+  // ================= LEGEND =================
+
+  Widget _buildLegend() {
+    return Padding(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _legendBox(Colors.red.shade300, "Logged"),
+
+          _legendBox(Colors.pink.shade100, "Predicted"),
+
+          _legendBox(
+            Colors.white,
+            "Today",
+            border: Border.all(color: Colors.blue, width: 2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendBox(Color color, String label, {Border? border}) {
+    return Row(
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+            border: border,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label),
+      ],
+    );
+  }
+
+  // ================= ACTIONS =================
+
+  void _addPeriodToday() {
+    controller.logPeriod(DateTime.now());
+
+    Get.snackbar(
+      "Added",
+      "Today's period logged",
+      snackPosition: SnackPosition.BOTTOM,
+    );
+  }
+
+  void _showDeleteDialog(DateTime date) {
+    Get.defaultDialog(
+      title: "Delete Log?",
+      middleText: "Remove this period log?",
+
+      textConfirm: "Delete",
+      textCancel: "Cancel",
+
+      onConfirm: () {
         controller.deleteLog(date);
-      } else {
-        controller.logPeriod(date);
-      }
-    }
+
+        Get.back();
+      },
+    );
   }
 }

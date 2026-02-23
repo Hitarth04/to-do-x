@@ -65,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.water_drop, color: Colors.redAccent),
-            onPressed: () => Get.to(() => const HealthScreen()),
+            onPressed: () => Get.to(() => HealthScreen()),
           ),
           Obx(
             () => IconButton(
@@ -325,138 +325,145 @@ class _HomeScreenState extends State<HomeScreen> {
     HealthController healthController,
     BuildContext context,
   ) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Obx(
-                () => Text(
-                  DateFormat('MMMM yyyy').format(controller.selectedDate.value),
+    return Obx(() {
+      final selectedDate = controller.selectedDate.value;
+
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+              children: [
+                Text(
+                  DateFormat('MMMM yyyy').format(selectedDate),
+
                   style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
                 ),
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left),
-                    onPressed: () => controller.selectedDate.value = controller
-                        .selectedDate
-                        .value
-                        .subtract(const Duration(days: 7)),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right),
-                    onPressed: () => controller.selectedDate.value = controller
-                        .selectedDate
-                        .value
-                        .add(const Duration(days: 7)),
-                  ),
-                ],
-              ),
-            ],
+
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left),
+
+                      onPressed: () {
+                        controller.selectedDate.value = selectedDate.subtract(
+                          const Duration(days: 7),
+                        );
+                      },
+                    ),
+
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right),
+
+                      onPressed: () {
+                        controller.selectedDate.value = selectedDate.add(
+                          const Duration(days: 7),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
 
-        // SizedBox prevents the Red Screen layout error
-        SizedBox(
-          height: 100,
-          child: Obx(() {
-            // Create a local variable from logs that we'll use in the UI
-            final periodLogs = healthController.logs;
+          SizedBox(
+            height: 100,
 
-            return EasyInfiniteDateTimeLine(
-              controller: _calendarController,
-              firstDate: DateTime.now().subtract(const Duration(days: 365)),
-              focusDate: controller.selectedDate.value,
-              lastDate: DateTime.now().add(const Duration(days: 365)),
-              onDateChange: (date) => controller.selectedDate.value = date,
-              showTimelineHeader: false,
-              dayProps: const EasyDayProps(width: 64.0, height: 84.0),
-              itemBuilder: (context, date, isSelected, onTap) {
-                // Determine if this date is a period day using the logs
-                bool isPeriod = false;
-                for (var log in periodLogs) {
-                  final diff = date.difference(log.date).inDays;
-                  if (diff >= 0 &&
-                      diff < healthController.periodDuration.value) {
-                    isPeriod = true;
-                    break;
-                  }
-                }
+            child: GetBuilder<HealthController>(
+              id: 'calendar',
 
-                // Theme Logic
-                bool isDark = Theme.of(context).brightness == Brightness.dark;
-                Color inactiveBg = Theme.of(context).cardColor;
-                Color inactiveText = isDark ? Colors.white : Colors.grey;
+              builder: (_) {
+                return EasyInfiniteDateTimeLine(
+                  controller: _calendarController,
 
-                Color bgColor = isSelected ? AppColors.primary : inactiveBg;
-                Color textColor = isSelected ? Colors.white : inactiveText;
-                Border? border = isSelected
-                    ? null
-                    : Border.all(
-                        color: isDark
-                            ? Colors.grey[800]!
-                            : Colors.grey.shade100,
-                      );
+                  firstDate: DateTime.now().subtract(const Duration(days: 365)),
 
-                // Override styles if it's a period day
-                if (isPeriod) {
-                  bgColor = Colors.redAccent;
-                  textColor = Colors.white;
-                  border = null;
-                }
+                  focusDate: selectedDate,
 
-                return InkWell(
-                  onTap: onTap,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    width: 64.0,
-                    height: 84.0,
-                    decoration: BoxDecoration(
-                      color: bgColor,
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+
+                  onDateChange: (date) {
+                    controller.selectedDate.value = date;
+                  },
+
+                  showTimelineHeader: false,
+
+                  dayProps: const EasyDayProps(width: 64, height: 84),
+
+                  itemBuilder: (context, date, isSelected, onTap) {
+                    final isPeriod = healthController.isPeriodDay(date);
+
+                    bool isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+
+                    Color inactiveBg = Theme.of(context).cardColor;
+
+                    Color inactiveText = isDark ? Colors.white : Colors.grey;
+
+                    Color bgColor = isSelected ? AppColors.primary : inactiveBg;
+
+                    Color textColor = isSelected ? Colors.white : inactiveText;
+
+                    if (isPeriod) {
+                      bgColor = Colors.redAccent;
+
+                      textColor = Colors.white;
+                    }
+
+                    return InkWell(
+                      onTap: onTap,
+
                       borderRadius: BorderRadius.circular(20),
-                      border: border,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          DateFormat('E').format(date),
-                          style: TextStyle(color: textColor, fontSize: 12),
+
+                      child: Container(
+                        width: 64,
+                        height: 84,
+
+                        decoration: BoxDecoration(
+                          color: bgColor,
+
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        const SizedBox(height: 5),
-                        Text(
-                          date.day.toString(),
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        // Use the observable in the UI
-                        if (isPeriod)
-                          Container(
-                            margin: const EdgeInsets.only(top: 4),
-                            width: 4,
-                            height: 4,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
+
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+
+                          children: [
+                            Text(
+                              DateFormat('E').format(date),
+
+                              style: TextStyle(color: textColor, fontSize: 12),
                             ),
-                          ),
-                      ],
-                    ),
-                  ),
+
+                            const SizedBox(height: 5),
+
+                            Text(
+                              date.day.toString(),
+
+                              style: TextStyle(
+                                color: textColor,
+
+                                fontSize: 18,
+
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
-            );
-          }),
-        ),
-      ],
-    );
+            ),
+          ),
+        ],
+      );
+    });
   }
 
   void _showAddTaskSheet(BuildContext context, {Task? taskToEdit}) {
