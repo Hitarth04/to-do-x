@@ -390,14 +390,7 @@ class HealthScreen extends StatelessWidget {
                   fontSize: 16,
                 ),
               ),
-              onTap: () {
-                if (isActive) {
-                  controller.endPeriod(DateTime.now());
-                } else {
-                  controller.startPeriod(DateTime.now());
-                }
-                Get.back();
-              },
+              onTap: () => _handlePeriodAction(DateTime.now(), isActive),
             ),
             const Divider(),
             ListTile(
@@ -417,23 +410,50 @@ class HealthScreen extends StatelessWidget {
                   fontSize: 16,
                 ),
               ),
-              onTap: () {
-                final yesterday = DateTime.now().subtract(
-                  const Duration(days: 1),
-                );
-                if (isActive) {
-                  controller.endPeriod(yesterday);
-                } else {
-                  controller.startPeriod(yesterday);
-                }
-                Get.back();
-              },
+              onTap: () => _handlePeriodAction(
+                DateTime.now().subtract(const Duration(days: 1)),
+                isActive,
+              ),
             ),
             const SizedBox(height: 10),
           ],
         ),
       ),
     );
+  }
+
+  // EARLY END VALIDATOR
+  void _handlePeriodAction(DateTime actionDate, bool isActive) {
+    Get.back(); // Close the bottom sheet first
+
+    if (!isActive) {
+      // STARTING a period needs no warning
+      controller.startPeriod(actionDate);
+    } else {
+      // ENDING a period: Check if it's suspiciously short
+      final startDate = controller.logs.first.startDate;
+      final daysDuration = actionDate.difference(startDate).inDays + 1;
+      final average = controller.averageBleedLength.value;
+
+      if (daysDuration < average) {
+        Get.defaultDialog(
+          title: "Are you sure?",
+          titleStyle: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          middleText:
+              "Your period usually lasts $average days, but it's only been $daysDuration days. Mark as ended?",
+          textConfirm: "Yes, End It",
+          textCancel: "Cancel",
+          confirmTextColor: Colors.white,
+          buttonColor: Colors.redAccent,
+          onConfirm: () {
+            controller.endPeriod(actionDate);
+            Get.back(); // Close dialog
+          },
+        );
+      } else {
+        controller.endPeriod(actionDate);
+      }
+    }
   }
 
   void _showUndoDialog() {
